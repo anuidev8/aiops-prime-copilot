@@ -1,0 +1,56 @@
+# Tasks Done
+
+- [x] Read project-local Next.js docs from `node_modules/next/dist/docs/` before implementation.
+- [x] Resolved and queried Context7 docs for Google ADK TypeScript and CopilotKit.
+- [x] Used the provided Agent Platform documentation link for deployment/runtime context.
+- [x] Installed and validated core dependencies:
+  - [x] `@google/adk`
+  - [x] `@copilotkit/runtime`
+  - [x] `@copilotkit/react-core`
+  - [x] `zod`
+- [x] Implemented backend DDD + Clean scaffolding:
+  - [x] Domain value objects, entities, aggregate, domain services
+  - [x] Application contracts and use cases
+  - [x] Infrastructure repositories, ADK agents, factories, config
+- [x] Implemented Next App Router HTTP interface:
+  - [x] `/api/aiops/analyze`
+  - [x] `/api/aiops/prime-report`
+  - [x] `/api/copilotkit` (CopilotKit single-route runtime)
+- [x] Validated CopilotKit configuration against Context7 + `energy-os-copilotkit` reference:
+  - [x] Kept backend in single-route mode (`POST /api/copilotkit`).
+  - [x] Confirmed frontend `useSingleEndpoint` alignment with single-route mode.
+  - [x] Added `@copilotkit/react-core/v2/styles.css` import in root layout.
+  - [x] Added `NEXT_PUBLIC_COPILOT_RUNTIME_URL` override and wired provider `runtimeUrl`.
+- [x] Implemented real-data analysis scope behavior (no forced random/default windowing):
+  - [x] Made telemetry/log repository time window optional.
+  - [x] Removed hardcoded default service scope in `AnalyzeLogsUseCase`.
+  - [x] Added resolved query metadata (`requested*` vs `resolved*` scope fields).
+  - [x] Added deterministic no-incident PRIME narrative path.
+- [x] Implemented Copilot workflow state-machine UX:
+  - [x] Added session workflow states (`idle -> scope -> telemetry -> analysis -> reporting -> ready/error`).
+  - [x] Synced workflow state with CopilotKit `useAgent` shared state and run lifecycle events.
+  - [x] Connected tool lifecycle rendering to workflow transitions.
+- [x] Upgraded dashboard visuals and KPI storytelling:
+  - [x] Incident analytics matrix cards (totals, critical, impacted services, duration).
+  - [x] Service pressure bars, severity mix distribution, incident timeline chart.
+  - [x] PRIME executive report block with KPI trend cards + business priority headline.
+- [x] Implemented frontend FSD-style structure and AIOps page:
+  - [x] session process state
+  - [x] incident dashboard feature
+  - [x] PRIME report viewer feature
+  - [x] Copilot feature with tool-result-to-UI bridge
+- [x] Added env template and rewritten README with architecture and run instructions.
+- [x] Ran quality checks:
+  - [x] `npm run lint` passed
+  - [x] `npm run build` passed
+- [x] Added ADK runtime observability endpoint and UI visibility:
+  - [x] New `GET /api/aiops/runtime-status` route (Node runtime, dynamic).
+  - [x] Added server-side runtime health builder:
+    - [x] ADK backend mode (`VERTEX_AI` vs `GEMINI_API`)
+    - [x] model/project/location readiness
+    - [x] ADC credential + token check via `google-auth-library`
+    - [x] Copilot model/provider visibility
+  - [x] Added frontend Runtime Status card in Copilot panel:
+    - [x] Refresh button
+    - [x] Last-check timestamp
+    - [x] Runtime log feed (recent checks/errors)

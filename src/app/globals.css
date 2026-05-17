@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f8fb;
+  --foreground: #0f1e2f;
+  --surface: #ffffff;
+  --surface-muted: #e8f2fb;
+  --line: #d8e5f3;
+  --accent: #0a7ea4;
+  --accent-soft: #d8f2fb;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-display-sans);
+  --font-mono: var(--font-ui-mono);
+}
+
+* {
+  border-color: var(--line);
+}
+
+body {
+  color: var(--foreground);
+  font-family: var(--font-display-sans), "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 10% 10%, #dff5ff 0%, transparent 35%),
+    radial-gradient(circle at 90% 15%, #e3fbea 0%, transparent 30%),
+    linear-gradient(180deg, #f7fbff 0%, #eef5fb 100%);
+}
