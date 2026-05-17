@@ -32,7 +32,10 @@ interface AIOpsSessionContextValue {
   isAnalyzing: boolean;
   error: string | null;
   workflow: AnalysisWorkflowState;
-  runAnalysis: (payload: AnalyzeLogsPayload) => Promise<void>;
+  runAnalysis: (
+    payload: AnalyzeLogsPayload,
+    source?: AnalysisWorkflowState["source"],
+  ) => Promise<void>;
   applyResultFromCopilot: (result: AnalyzeLogsResult) => void;
   setWorkflowStage: (
     stage: AnalysisWorkflowStage,
@@ -70,39 +73,67 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
     [],
   );
 
-  const runAnalysis = useCallback(async (payload: AnalyzeLogsPayload) => {
-    setIsAnalyzing(true);
-    setError(null);
-    setWorkflow({
-      stage: "reading_telemetry",
-      source: "manual",
-      detail: "Pulling logs from telemetry sources.",
-      updatedAt: new Date().toISOString(),
-    });
+  const runAnalysis = useCallback(
+    async (
+      payload: AnalyzeLogsPayload,
+      source: AnalysisWorkflowState["source"] = "manual",
+    ) => {
+      setIsAnalyzing(true);
+      setError(null);
+      setWorkflow({
+        stage: "collecting_scope",
+        source,
+        detail: "Resolving analysis scope across telemetry sources.",
+        updatedAt: new Date().toISOString(),
+      });
 
-    try {
-      const analysis = await analyzeLogs(payload);
-      setResult(analysis);
       setWorkflow({
-        stage: "ready",
-        source: "manual",
-        detail: "Analysis and KPI report are ready.",
+        stage: "reading_telemetry",
+        source,
+        detail: "Pulling logs and detecting correlated incidents.",
         updatedAt: new Date().toISOString(),
       });
-    } catch (caught) {
-      const message =
-        caught instanceof Error ? caught.message : "Failed to run analysis.";
-      setError(message);
-      setWorkflow({
-        stage: "error",
-        source: "manual",
-        detail: message,
-        updatedAt: new Date().toISOString(),
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, []);
+
+      try {
+        setWorkflow({
+          stage: "root_cause_analysis",
+          source,
+          detail: "Running ADK analyst agents on detected incidents.",
+          updatedAt: new Date().toISOString(),
+        });
+
+        const analysis = await analyzeLogs(payload);
+
+        setWorkflow({
+          stage: "reporting",
+          source,
+          detail: "Building PRIME KPI report and narratives.",
+          updatedAt: new Date().toISOString(),
+        });
+
+        setResult(analysis);
+        setWorkflow({
+          stage: "ready",
+          source,
+          detail: "Analysis and KPI report are ready.",
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (caught) {
+        const message =
+          caught instanceof Error ? caught.message : "Failed to run analysis.";
+        setError(message);
+        setWorkflow({
+          stage: "error",
+          source,
+          detail: message,
+          updatedAt: new Date().toISOString(),
+        });
+      } finally {
+        setIsAnalyzing(false);
+      }
+    },
+    [],
+  );
 
   const applyResultFromCopilot = useCallback((copilotResult: AnalyzeLogsResult) => {
     setResult(copilotResult);

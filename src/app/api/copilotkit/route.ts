@@ -14,7 +14,7 @@ const analyzeLogsUseCase = createAnalyzeLogsUseCase();
 const analyzeLogsTool = defineTool({
   name: "analyzeLogs",
   description:
-    "Analyze observability logs, detect incidents, explain likely root causes, and produce PRIME KPIs plus narratives. If timeWindowMinutes is omitted, analyze available telemetry scope.",
+    "Analyze observability logs, detect incidents, explain likely root causes, and produce PRIME KPIs plus narratives. Omit services to analyze all telemetry. If timeWindowMinutes is omitted, use the full available scope.",
   parameters: z.object({
     prompt: z.string().optional(),
     services: z.array(z.string()).optional(),
@@ -80,9 +80,12 @@ const aiopsBuiltInAgent = new BuiltInAgent({
   tools: [analyzeLogsTool],
   prompt: [
     "You are AIOps Prime Copilot.",
-    "For incident investigation, call analyzeLogs with appropriate services and optional time window.",
-    "When the user does not provide a time window, prefer full available scope over guessing.",
-    "Always summarize technical findings and business impact separately.",
+    "When the user asks to run, start, or execute analysis (including typos like analisis) without naming specific services, immediately call analyzeLogs with an empty argument object {} to analyze all available telemetry.",
+    "Never ask the user to specify services for a full-scope analysis request.",
+    "Only pass services to analyzeLogs when the user explicitly names one or more services.",
+    "When the user does not provide a time window, omit timeWindowMinutes so the pipeline uses full available scope.",
+    "After analyzeLogs completes, summarize technical findings and business impact separately using the tool output.",
+    "When session context already includes fresh incidents and KPIs, summarize that data instead of calling analyzeLogs again.",
     "When tool data includes `ui` blocks, explain what the UI should render.",
   ].join("\n"),
 });

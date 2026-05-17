@@ -3,12 +3,17 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   CopilotChat,
+  CopilotChatViewProps,
   CopilotKit,
   JsonSerializable,
   useAgent,
   useAgentContext,
   useDefaultRenderTool,
 } from "@copilotkit/react-core/v2";
+import {
+  coerceAnalyzeLogsResult,
+  parseAnalysisChatIntent,
+} from "@/shared/lib/analysis-chat";
 import {
   AnalysisWorkflowStage,
   useAIOpsSession,
@@ -33,17 +38,6 @@ function stageIndex(stage: AnalysisWorkflowStage): number {
   if (stage === "idle") return -1;
   if (stage === "error") return workflowSequence.length;
   return workflowSequence.findIndex((step) => step.stage === stage);
-}
-
-function isAnalyzeLogsResult(value: unknown): value is AnalyzeLogsResult {
-  if (typeof value !== "object" || value === null) return false;
-
-  const candidate = value as Record<string, unknown>;
-  return (
-    "incidents" in candidate &&
-    "primeReport" in candidate &&
-    Array.isArray(candidate.incidents)
-  );
 }
 
 function normalizeAgentState(value: unknown): Record<string, unknown> {
@@ -267,14 +261,25 @@ function ToolRenderCard({
   useEffect(() => {
     if (name !== "analyzeLogs") return;
 
-    if (status === "complete" && isAnalyzeLogsResult(result)) {
+    const parsedResult = coerceAnalyzeLogsResult(result);
+
+    if (status === "complete" && parsedResult) {
       onWorkflowUpdate("reporting", "copilot", "Copilot consolidated KPI report output.");
-      onApplyResult(result);
+      onApplyResult(parsedResult);
       return;
     }
 
     if (status === "failed" || status === "error") {
       onWorkflowUpdate("error", "copilot", "Copilot analysis failed.");
+      return;
+    }
+
+    if (status === "executing" || status === "inProgress") {
+      onWorkflowUpdate(
+        "reading_telemetry",
+        "copilot",
+        "Copilot dispatched ADK analysis across telemetry sources.",
+      );
       return;
     }
 
@@ -295,8 +300,46 @@ function ToolRenderCard({
   );
 }
 
+function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
+  const { runAnalysis, setWorkflowStage } = useAIOpsSession();
+
+  const handleSubmitMessage = useCallback(
+    (value: string) => {
+      const intent = parseAnalysisChatIntent(value);
+
+      if (!intent) {
+        props.onSubmitMessage?.(value);
+        return;
+      }
+
+      const scopeLabel =
+        intent.payload.services?.join(", ") ?? "all available services";
+
+      setWorkflowStage(
+        "collecting_scope",
+        "copilot",
+        `Chat requested analysis for ${scopeLabel}. Dispatching ADK pipeline.`,
+      );
+
+      void (async () => {
+        await runAnalysis(intent.payload, "copilot");
+        props.onSubmitMessage?.(value);
+      })();
+    },
+    [props, runAnalysis, setWorkflowStage],
+  );
+
+  return <CopilotChat.View {...props} onSubmitMessage={handleSubmitMessage} />;
+}
+
+const AIOpsCopilotChatView = Object.assign(
+  AIOpsCopilotChatViewInner,
+  CopilotChat.View,
+);
+
 function CopilotChatSurface() {
-  const { result, workflow, applyResultFromCopilot, setWorkflowStage } = useAIOpsSession();
+  const { result, workflow, applyResultFromCopilot, setWorkflowStage, isAnalyzing } =
+    useAIOpsSession();
   const { agent } = useAgent({ agentId: "default" });
 
   const sharedContext = useMemo(
@@ -366,10 +409,16 @@ function CopilotChatSurface() {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-2">
+      {isAnalyzing ? (
+        <p className="mb-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900">
+          ADK analysis in progress — dashboard will refresh when incidents and KPIs are ready.
+        </p>
+      ) : null}
       <CopilotChat
+        chatView={AIOpsCopilotChatView}
         labels={{
           chatInputPlaceholder:
-            "Ask: Analyze payments-api and auth-service. Then explain KPI impact.",
+            'Try: "run analysis" or "analyze payments-api for last 30 minutes"',
         }}
       />
     </div>
