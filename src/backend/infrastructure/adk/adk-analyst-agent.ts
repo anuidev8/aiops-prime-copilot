@@ -37,11 +37,21 @@ export class AdkAIOpsAnalystAgent implements AIOpsAnalystAgent {
     private readonly remediationPlanner: RemediationPlanner,
   ) {}
 
-  async analyzeIncidents(input: { incidents: Incident[] }): Promise<Analysis[]> {
+  async analyzeIncidents(input: {
+    incidents: Incident[];
+    onIncidentAnalyzed?: (input: {
+      analysis: Analysis;
+      index: number;
+      total: number;
+    }) => void;
+  }): Promise<Analysis[]> {
     const analyses: Analysis[] = [];
+    const total = input.incidents.length;
 
-    for (const incident of input.incidents) {
-      analyses.push(await this.analyzeSingleIncident(incident));
+    for (const [index, incident] of input.incidents.entries()) {
+      const analysis = await this.analyzeSingleIncident(incident);
+      analyses.push(analysis);
+      input.onIncidentAnalyzed?.({ analysis, index, total });
     }
 
     return analyses;

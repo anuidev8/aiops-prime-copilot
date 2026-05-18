@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "@copilotkit/react-core/v2/styles.css";
 import "./globals.css";
+import { MainLayoutShell } from "@/shared/ui/main-layout-shell";
 
 const displaySans = Space_Grotesk({
   variable: "--font-display-sans",
@@ -28,9 +29,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${displaySans.variable} ${mono.variable} h-full antialiased`}
+      className={`${displaySans.variable} ${mono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex text-slate-300">
+        <MainLayoutShell>
+          {children}
+        </MainLayoutShell>
+      </body>
     </html>
   );
 }

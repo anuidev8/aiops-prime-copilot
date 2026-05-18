@@ -8,7 +8,16 @@ import {
   useMemo,
   useState,
 } from "react";
-import { analyzeLogs } from "@/shared/api/aiops-client";
+import { analyzeLogsStream } from "@/shared/api/aiops-client";
+import { mergeAnalysisSnapshot } from "@/shared/lib/merge-analysis-snapshot";
+import {
+  AnalysisAgentId,
+  AnalysisAgentStep,
+  AnalysisIncidentProgress,
+  AnalysisProgressEvent,
+  applyProgressToPipeline,
+  createInitialAgentPipeline,
+} from "@/shared/types/analysis-progress";
 import { AnalyzeLogsPayload, AnalyzeLogsResult } from "@/shared/types/aiops";
 
 export type AnalysisWorkflowStage =
@@ -27,11 +36,79 @@ export interface AnalysisWorkflowState {
   updatedAt: string;
 }
 
+function workflowStageFromAgent(agent: AnalysisAgentId): AnalysisWorkflowStage {
+  if (agent === "scope") return "collecting_scope";
+  if (agent === "telemetry") return "reading_telemetry";
+  if (agent === "analyst") return "root_cause_analysis";
+  return "reporting";
+}
+
+function handleProgressEvent(
+  event: AnalysisProgressEvent,
+  setters: {
+    setAgentPipeline: React.Dispatch<React.SetStateAction<AnalysisAgentStep[]>>;
+    setIncidentProgress: React.Dispatch<
+      React.SetStateAction<AnalysisIncidentProgress | null>
+    >;
+    setResult: React.Dispatch<React.SetStateAction<AnalyzeLogsResult | null>>;
+    setWorkflow: React.Dispatch<React.SetStateAction<AnalysisWorkflowState>>;
+    source: AnalysisWorkflowState["source"];
+  },
+) {
+  setters.setAgentPipeline((current) => applyProgressToPipeline(current, event));
+
+  if (event.type === "agent_started") {
+    setters.setWorkflow({
+      stage: workflowStageFromAgent(event.agent),
+      source: setters.source,
+      detail: event.detail,
+      updatedAt: event.timestamp,
+    });
+    return;
+  }
+
+  if (event.type === "incident_analyzed") {
+    setters.setIncidentProgress(event.progress);
+    setters.setResult((current) => mergeAnalysisSnapshot(current, event.snapshot));
+    setters.setWorkflow({
+      stage: "root_cause_analysis",
+      source: setters.source,
+      detail: event.detail,
+      updatedAt: event.timestamp,
+    });
+    return;
+  }
+
+  if (event.type === "agent_completed") {
+    setters.setResult((current) => mergeAnalysisSnapshot(current, event.snapshot));
+    setters.setWorkflow({
+      stage: workflowStageFromAgent(event.agent),
+      source: setters.source,
+      detail: event.detail,
+      updatedAt: event.timestamp,
+    });
+    return;
+  }
+
+  if (event.type === "complete") {
+    setters.setIncidentProgress(null);
+    setters.setResult(event.result);
+    setters.setWorkflow({
+      stage: "ready",
+      source: setters.source,
+      detail: "Analysis and KPI report are ready.",
+      updatedAt: event.timestamp,
+    });
+  }
+}
+
 interface AIOpsSessionContextValue {
   result: AnalyzeLogsResult | null;
   isAnalyzing: boolean;
   error: string | null;
   workflow: AnalysisWorkflowState;
+  agentPipeline: AnalysisAgentStep[];
+  incidentProgress: AnalysisIncidentProgress | null;
   runAnalysis: (
     payload: AnalyzeLogsPayload,
     source?: AnalysisWorkflowState["source"],
@@ -50,6 +127,10 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const [result, setResult] = useState<AnalyzeLogsResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentPipeline, setAgentPipeline] = useState(createInitialAgentPipeline);
+  const [incidentProgress, setIncidentProgress] = useState<AnalysisIncidentProgress | null>(
+    null,
+  );
   const [workflow, setWorkflow] = useState<AnalysisWorkflowState>({
     stage: "idle",
     source: "system",
@@ -80,35 +161,33 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
     ) => {
       setIsAnalyzing(true);
       setError(null);
+      setIncidentProgress(null);
+      setAgentPipeline(createInitialAgentPipeline());
       setWorkflow({
         stage: "collecting_scope",
         source,
-        detail: "Resolving analysis scope across telemetry sources.",
+        detail: "Starting multi-agent ADK analysis pipeline.",
         updatedAt: new Date().toISOString(),
       });
 
-      setWorkflow({
-        stage: "reading_telemetry",
-        source,
-        detail: "Pulling logs and detecting correlated incidents.",
-        updatedAt: new Date().toISOString(),
-      });
+      let streamedResult: AnalyzeLogsResult | null = null;
 
       try {
-        setWorkflow({
-          stage: "root_cause_analysis",
-          source,
-          detail: "Running ADK analyst agents on detected incidents.",
-          updatedAt: new Date().toISOString(),
-        });
-
-        const analysis = await analyzeLogs(payload);
-
-        setWorkflow({
-          stage: "reporting",
-          source,
-          detail: "Building PRIME KPI report and narratives.",
-          updatedAt: new Date().toISOString(),
+        const analysis = await analyzeLogsStream(payload, (event) => {
+          handleProgressEvent(event, {
+            setAgentPipeline,
+            setIncidentProgress,
+            setResult: (updater) => {
+              setResult((current) => {
+                const next =
+                  typeof updater === "function" ? updater(current) : updater;
+                if (next) streamedResult = next;
+                return next;
+              });
+            },
+            setWorkflow,
+            source,
+          });
         });
 
         setResult(analysis);
@@ -128,8 +207,20 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
           detail: message,
           updatedAt: new Date().toISOString(),
         });
+        setAgentPipeline((current) =>
+          current.map((step) =>
+            step.status === "running"
+              ? { ...step, status: "error", detail: message }
+              : step,
+          ),
+        );
+
+        if (streamedResult) {
+          setResult(streamedResult);
+        }
       } finally {
         setIsAnalyzing(false);
+        setIncidentProgress(null);
       }
     },
     [],
@@ -138,6 +229,14 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const applyResultFromCopilot = useCallback((copilotResult: AnalyzeLogsResult) => {
     setResult(copilotResult);
     setError(null);
+    setAgentPipeline(
+      createInitialAgentPipeline().map((step) => ({
+        ...step,
+        status: "complete",
+        detail: "Synchronized from Copilot tool output.",
+        completedAt: new Date().toISOString(),
+      })),
+    );
     setWorkflow({
       stage: "ready",
       source: "copilot",
@@ -152,6 +251,8 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       isAnalyzing,
       error,
       workflow,
+      agentPipeline,
+      incidentProgress,
       runAnalysis,
       applyResultFromCopilot,
       setWorkflowStage,
@@ -161,6 +262,8 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       isAnalyzing,
       error,
       workflow,
+      agentPipeline,
+      incidentProgress,
       runAnalysis,
       applyResultFromCopilot,
       setWorkflowStage,

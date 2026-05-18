@@ -11,9 +11,9 @@ function trendIndicator(trend: PrimeKpiViewModel["trend"]): string {
 }
 
 function trendColor(trend: PrimeKpiViewModel["trend"]): string {
-  if (trend === "up") return "text-emerald-700 bg-emerald-100 border-emerald-200";
-  if (trend === "down") return "text-rose-700 bg-rose-100 border-rose-200";
-  return "text-slate-700 bg-slate-100 border-slate-200";
+  if (trend === "up") return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+  if (trend === "down") return "text-rose-400 bg-rose-500/10 border-rose-500/30";
+  return "text-slate-400 bg-slate-500/10 border-slate-500/30";
 }
 
 function barWidth(kpi: PrimeKpiViewModel): number {
@@ -42,39 +42,38 @@ export function PrimeKpiGrid({ kpis }: PrimeKpiGridProps) {
       {kpis.map((kpi) => (
         <article
           key={kpi.name}
-          className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_6px_20px_-18px_rgba(2,6,23,0.35)]"
+          className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors hover:bg-slate-800/50"
         >
           <div className="flex items-start justify-between gap-2">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{kpi.name}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{kpi.name}</p>
             <span
               className={[
-                "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                "rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide",
                 trendColor(kpi.trend),
               ].join(" ")}
             >
               {trendIndicator(kpi.trend)}
             </span>
           </div>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">
-            {kpi.value} <span className="text-sm text-slate-500">{kpi.unit}</span>
+          <p className="mt-2 text-2xl font-semibold text-white drop-shadow-sm">
+            {kpi.value} <span className="text-sm text-slate-500 font-mono">{kpi.unit}</span>
           </p>
-          <div className="mt-2 h-2 rounded-full bg-slate-100">
+          <div className="mt-3 h-1.5 rounded-full bg-slate-800 overflow-hidden relative">
             <div
               className={[
-                "h-2 rounded-full",
+                "absolute inset-y-0 left-0 rounded-full shadow-[0_0_8px_currentColor]",
                 kpi.trend === "up"
-                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500"
+                  ? "bg-gradient-to-r from-emerald-600 to-emerald-400 text-emerald-500"
                   : kpi.trend === "down"
-                    ? "bg-gradient-to-r from-rose-500 to-orange-500"
-                    : "bg-gradient-to-r from-slate-500 to-slate-400",
+                    ? "bg-gradient-to-r from-rose-600 to-rose-400 text-rose-500"
+                    : "bg-gradient-to-r from-slate-600 to-slate-400 text-slate-500",
               ].join(" ")}
               style={{ width: `${barWidth(kpi)}%` }}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-600">{kpi.description}</p>
+          <p className="mt-3 text-xs text-slate-500">{kpi.description}</p>
         </article>
       ))}
     </div>
   );
 }
-

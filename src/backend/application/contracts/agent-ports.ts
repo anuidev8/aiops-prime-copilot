@@ -11,7 +11,14 @@ export interface TelemetryAgent {
 }
 
 export interface AIOpsAnalystAgent {
-  analyzeIncidents(input: { incidents: Incident[] }): Promise<Analysis[]>;
+  analyzeIncidents(input: {
+    incidents: Incident[];
+    onIncidentAnalyzed?: (input: {
+      analysis: Analysis;
+      index: number;
+      total: number;
+    }) => void;
+  }): Promise<Analysis[]>;
 }
 
 export interface PrimeReporterAgent {

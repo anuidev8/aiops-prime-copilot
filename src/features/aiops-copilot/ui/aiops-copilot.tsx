@@ -8,8 +8,14 @@ import {
   JsonSerializable,
   useAgent,
   useAgentContext,
+  useComponent,
   useDefaultRenderTool,
+  useRenderTool,
 } from "@copilotkit/react-core/v2";
+import { z } from "zod";
+import { adkPipelineActivityRenderer } from "@/features/agent-pipeline/ui/adk-pipeline-chat-activity";
+import { useSyncAdkPipelineChatActivity } from "@/features/agent-pipeline/hooks/use-sync-adk-pipeline-chat-activity";
+import { AgentPipelineLive } from "@/features/agent-pipeline/ui/agent-pipeline-live";
 import {
   coerceAnalyzeLogsResult,
   parseAnalysisChatIntent,
@@ -53,7 +59,7 @@ function WorkflowRail() {
   const activeIndex = stageIndex(workflow.stage);
 
   return (
-    <div className="mb-3 rounded-xl border border-cyan-200/80 bg-cyan-50/80 p-3">
+    <div className="mb-4 rounded-xl border border-cyan-500/20 bg-slate-900/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
       <div className="flex flex-wrap items-center gap-2">
         {workflowSequence.map((step, index) => {
           const complete = activeIndex > index;
@@ -63,12 +69,12 @@ function WorkflowRail() {
             <span
               key={step.stage}
               className={[
-                "rounded-full border px-2 py-1 text-xs font-medium",
+                "rounded-full border px-2.5 py-1 text-xs font-medium tracking-wide transition-colors",
                 complete
-                  ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                   : active
-                    ? "border-cyan-300 bg-cyan-100 text-cyan-800"
-                    : "border-slate-200 bg-white text-slate-500",
+                    ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300 shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+                    : "border-slate-700/50 bg-slate-800/50 text-slate-500",
               ].join(" ")}
             >
               {step.label}
@@ -76,12 +82,12 @@ function WorkflowRail() {
           );
         })}
         {workflow.stage === "error" ? (
-          <span className="rounded-full border border-rose-300 bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700">
+          <span className="rounded-full border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-xs font-medium text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.2)]">
             Error
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-xs text-slate-700">{workflow.detail}</p>
+      <p className="mt-3 text-xs text-slate-400 border-t border-slate-800/50 pt-2">{workflow.detail}</p>
     </div>
   );
 }
@@ -154,38 +160,39 @@ function RuntimeStatusCard() {
   }, [refreshStatus]);
 
   const statusTone = status?.adk.ready
-    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-    : "border-amber-200 bg-amber-50 text-amber-900";
+    ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
+    : "border-amber-500/30 text-amber-400 bg-amber-500/10";
   const adcTone = status?.adc.tokenReady
-    ? "text-emerald-700"
+    ? "text-emerald-400"
     : status?.adc.required
-      ? "text-amber-700"
-      : "text-slate-600";
+      ? "text-amber-400"
+      : "text-slate-500";
   const checkedAt = status ? new Date(status.checkedAt).toLocaleTimeString() : "Pending";
 
   return (
-    <section className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+    <section className="mb-4 rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-3.5 h-3.5 text-cyan-500"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
           Runtime Status
         </h3>
         <button
           type="button"
           onClick={() => void refreshStatus("manual")}
-          className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
         >
           Refresh
         </button>
       </div>
 
-      <p className="mb-2 text-xs text-slate-600">Last check: {checkedAt}</p>
+      <p className="mb-3 text-xs text-slate-500 font-mono">Last check: {checkedAt}</p>
 
       {status ? (
-        <div className="space-y-2 text-xs">
-          <p className={`rounded-lg border px-2 py-1 ${statusTone}`}>{status.message}</p>
+        <div className="space-y-2.5 text-xs text-slate-300">
+          <p className={`rounded-lg border px-3 py-2 ${statusTone}`}>{status.message}</p>
           <p>
-            ADK: <strong>{status.adk.backend}</strong> · model{" "}
-            <strong>{status.adk.model}</strong>
+            ADK: <strong className="text-white">{status.adk.backend}</strong> · model{" "}
+            <strong className="text-cyan-400">{status.adk.model}</strong>
           </p>
           <p className={adcTone}>
             ADC: {status.adc.configured ? "configured" : "not configured"} · token{" "}
@@ -193,41 +200,44 @@ function RuntimeStatusCard() {
           </p>
           {status.adk.vertexEnabled ? (
             <p>
-              Vertex scope: <strong>{status.adk.project ?? "missing project"}</strong> ·{" "}
-              <strong>{status.adk.location ?? "missing location"}</strong>
+              Vertex scope: <strong className="text-white">{status.adk.project ?? "missing project"}</strong> ·{" "}
+              <strong className="text-white">{status.adk.location ?? "missing location"}</strong>
             </p>
           ) : null}
           <p>
-            Copilot: <strong>{status.copilot.provider}</strong> · model{" "}
-            <strong>{status.copilot.model}</strong>
+            Copilot: <strong className="text-white">{status.copilot.provider}</strong> · model{" "}
+            <strong className="text-cyan-400">{status.copilot.model}</strong>
           </p>
           {status.adc.principal ? (
-            <p className="truncate text-slate-600">
+            <p className="truncate text-slate-500">
               Principal ({status.adc.principalType}): {status.adc.principal}
             </p>
           ) : null}
           {status.adc.error ? (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">
+            <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-400">
               ADC detail: {status.adc.error}
             </p>
           ) : null}
         </div>
       ) : null}
 
-      {loading ? <p className="mt-2 text-xs text-slate-500">Checking runtime...</p> : null}
-      {error ? <p className="mt-2 text-xs text-rose-700">{error}</p> : null}
+      {loading ? <p className="mt-3 text-xs text-cyan-500 animate-pulse">Checking runtime...</p> : null}
+      {error ? <p className="mt-3 text-xs text-rose-500">{error}</p> : null}
 
-      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <div className="mt-4 rounded-lg border border-slate-800/50 bg-[#090c15] p-3 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
           Runtime Log
         </p>
         {logEntries.length === 0 ? (
-          <p className="text-xs text-slate-500">No checks yet.</p>
+          <p className="text-xs text-slate-600 font-mono">No checks yet.</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5 font-mono text-[10px]">
             {logEntries.map((entry) => (
-              <li key={entry.id} className="text-xs text-slate-700">
-                [{new Date(entry.timestamp).toLocaleTimeString()}] {entry.message}
+              <li key={entry.id} className="text-slate-400">
+                <span className="text-slate-600">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>{" "}
+                <span className={entry.level === 'error' ? 'text-rose-400' : entry.level === 'warn' ? 'text-amber-400' : 'text-emerald-400'}>
+                  {entry.message}
+                </span>
               </li>
             ))}
           </ul>
@@ -290,13 +300,22 @@ function ToolRenderCard({
     );
   }, [name, status, result, onApplyResult, onWorkflowUpdate]);
 
+  const showPipeline =
+    name === "analyzeLogs" &&
+    (status === "inProgress" || status === "executing" || status === "complete");
+
   return (
-    <details className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
-      <summary className="cursor-pointer font-medium text-slate-700">
-        {status === "complete" ? `Tool ${name} completed` : `Tool ${name} running`}
-      </summary>
-      <p className="mt-1 break-words text-slate-600">Args: {JSON.stringify(parameters)}</p>
-    </details>
+    <div className="mt-2 space-y-2">
+      {showPipeline ? <AgentPipelineLive compact /> : null}
+      <details className="rounded-lg border border-cyan-500/20 bg-cyan-900/10 p-3 text-xs">
+        <summary className="cursor-pointer font-medium text-cyan-400">
+          {status === "complete" ? `Tool ${name} completed` : `Tool ${name} running`}
+        </summary>
+        <p className="mt-2 break-words rounded border border-slate-800 bg-[#090c15] p-2 font-mono text-[10px] text-slate-400">
+          Args: {JSON.stringify(parameters)}
+        </p>
+      </details>
+    </div>
   );
 }
 
@@ -338,9 +357,47 @@ const AIOpsCopilotChatView = Object.assign(
 );
 
 function CopilotChatSurface() {
-  const { result, workflow, applyResultFromCopilot, setWorkflowStage, isAnalyzing } =
-    useAIOpsSession();
+  const {
+    result,
+    workflow,
+    applyResultFromCopilot,
+    setWorkflowStage,
+    agentPipeline,
+    incidentProgress,
+    isAnalyzing,
+  } = useAIOpsSession();
   const { agent } = useAgent({ agentId: "default" });
+
+  useSyncAdkPipelineChatActivity(agent);
+
+  useComponent({
+    name: "showAdkAgentPipeline",
+    description:
+      "Render the live ADK agent pipeline (scope, telemetry, analyst, reporter) inside chat while analysis runs.",
+    parameters: z.object({
+      headline: z.string().optional(),
+    }),
+    render: () => <AgentPipelineLive compact />,
+  });
+
+  useRenderTool({
+    name: "analyzeLogs",
+    parameters: z.object({
+      prompt: z.string().optional(),
+      services: z.array(z.string()).optional(),
+      timeWindowMinutes: z.number().optional(),
+    }),
+    render: ({ name, status, parameters, result: toolResult }) => (
+      <ToolRenderCard
+        name={name}
+        status={status}
+        parameters={parameters}
+        result={toolResult}
+        onApplyResult={applyResultFromCopilot}
+        onWorkflowUpdate={setWorkflowStage}
+      />
+    ),
+  });
 
   const sharedContext = useMemo(
     () =>
@@ -350,14 +407,17 @@ function CopilotChatSurface() {
           incidents: result?.incidents ?? [],
           kpis: result?.primeReport.kpis ?? [],
           workflow,
+          agentPipeline,
+          incidentProgress,
+          isAnalyzing,
         }),
       ) as JsonSerializable,
-    [result, workflow],
+    [result, workflow, agentPipeline, incidentProgress, isAnalyzing],
   );
 
   useAgentContext({
     description:
-      "Current AIOps session context with latest incidents, PRIME KPIs, workflow state, and analysis scope.",
+      "Current AIOps session context with live ADK agent pipeline status, incidents, PRIME KPIs, and workflow stage.",
     value: sharedContext,
   });
 
@@ -408,12 +468,22 @@ function CopilotChatSurface() {
   });
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-2">
-      {isAnalyzing ? (
-        <p className="mb-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900">
-          ADK analysis in progress — dashboard will refresh when incidents and KPIs are ready.
-        </p>
-      ) : null}
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-1 flex-1 min-h-[400px] overflow-hidden">
+      {/* We add global overrides for CopilotKit CSS to match dark theme */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .copilotKitChat {
+           --copilot-kit-background: transparent !important;
+           --copilot-kit-primary-color: #00f0ff !important;
+           --copilot-kit-secondary-color: rgba(30, 41, 59, 0.8) !important;
+        }
+        .copilotKitMessage { color: #d1d5db !important; }
+        .copilotKitInput { 
+           background: rgba(15, 23, 42, 0.8) !important;
+           border: 1px solid rgba(0, 240, 255, 0.2) !important;
+           color: white !important;
+        }
+      `}} />
+      
       <CopilotChat
         chatView={AIOpsCopilotChatView}
         labels={{
@@ -466,74 +536,86 @@ function AIOpsCopilotPanel() {
 
   return (
     <Panel
-      title="AIOps Prime Copilot"
+      title="Multi Agent Decision Layer"
       subtitle="Chat + stateful workflow orchestration across telemetry, analysis and reporting"
-      className="h-full"
+      className="h-full flex flex-col"
     >
       <WorkflowRail />
       <RuntimeStatusCard />
 
-      <form className="mb-3 grid gap-2" onSubmit={onSubmit}>
-        <label className="text-xs font-medium text-slate-600" htmlFor="services-input">
-          Services (optional, comma-separated)
-        </label>
-        <input
-          id="services-input"
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          placeholder="payments-api, auth-service"
-          value={servicesInput}
-          onChange={(event) => setServicesInput(event.target.value)}
-        />
+      <form className="mb-4 grid gap-3 p-4 rounded-xl border border-slate-800/60 bg-[#090c15]/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.3)]" onSubmit={onSubmit}>
+        <div>
+           <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1.5" htmlFor="services-input">
+             Services Target
+           </label>
+           <input
+             id="services-input"
+             className="w-full rounded-lg border border-slate-700/50 bg-slate-900/80 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+             placeholder="payments-api, auth-service"
+             value={servicesInput}
+             onChange={(event) => setServicesInput(event.target.value)}
+           />
+        </div>
 
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-400 mt-1 cursor-pointer">
           <input
             type="checkbox"
+            className="rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500/20"
             checked={useTimeWindow}
             onChange={(event) => setUseTimeWindow(event.target.checked)}
           />
-          Use time window (optional)
+          Use custom time window
         </label>
 
         {useTimeWindow ? (
-          <input
-            id="window-input"
-            type="number"
-            min={1}
-            max={1440}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            value={timeWindowInput}
-            onChange={(event) => setTimeWindowInput(event.target.value)}
-          />
+          <div className="animate-in fade-in slide-in-from-top-2">
+            <input
+              id="window-input"
+              type="number"
+              min={1}
+              max={1440}
+              className="w-full rounded-lg border border-slate-700/50 bg-slate-900/80 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+              value={timeWindowInput}
+              onChange={(event) => setTimeWindowInput(event.target.value)}
+            />
+          </div>
         ) : null}
 
         <button
           type="submit"
           disabled={isAnalyzing}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="mt-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-[0_0_15px_rgba(0,240,255,0.2)] hover:shadow-[0_0_25px_rgba(0,240,255,0.4)] disabled:opacity-50 disabled:shadow-none transition-all w-full border border-cyan-400/30"
         >
-          {isAnalyzing ? "Analyzing..." : "Run analysis"}
+          {isAnalyzing ? "Executing Analysis Pipeline..." : "Execute Market / Signal Agents"}
         </button>
       </form>
 
       {result ? (
-        <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-          Scope resolved to {result.query.analyzedServices.join(", ") || "all services"} over{" "}
-          {result.query.resolvedTimeWindowMinutes} minutes.
+        <p className="mb-4 rounded-lg bg-slate-800/40 border border-slate-700/50 px-3 py-2.5 text-xs text-slate-300">
+          <span className="text-cyan-400 mr-2">✓</span> Scope resolved to <span className="font-mono text-white">{result.query.analyzedServices.join(", ") || "all services"}</span> over{" "}
+          <span className="font-mono text-white">{result.query.resolvedTimeWindowMinutes}</span> minutes.
         </p>
       ) : null}
 
-      {error ? <p className="mb-3 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="mb-4 text-sm text-rose-500 bg-rose-500/10 border border-rose-500/20 p-3 rounded-lg">{error}</p> : null}
 
       <CopilotChatSurface />
     </Panel>
   );
 }
 
+const aiopsActivityRenderers = [adkPipelineActivityRenderer] as const;
+
 export function AIOpsCopilot() {
   const runtimeUrl = process.env.NEXT_PUBLIC_COPILOT_RUNTIME_URL ?? "/api/copilotkit";
 
   return (
-    <CopilotKit runtimeUrl={runtimeUrl} useSingleEndpoint debug={false}>
+    <CopilotKit
+      runtimeUrl={runtimeUrl}
+      useSingleEndpoint
+      debug={false}
+      renderActivityMessages={[...aiopsActivityRenderers]}
+    >
       <AIOpsCopilotPanel />
     </CopilotKit>
   );
