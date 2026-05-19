@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   FileText,
   MoreHorizontal,
-  Plus,
   RefreshCw,
   ShieldAlert,
   type LucideIcon,
@@ -189,16 +188,6 @@ export function ReportSectionsList({
             </motion.button>
           );
         })}
-      </div>
-
-      <div className="border-t border-slate-100 bg-slate-50/50 p-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-200 py-2.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
-        >
-          <Plus className="h-4 w-4" />
-          Add section
-        </button>
       </div>
     </motion.div>
   );

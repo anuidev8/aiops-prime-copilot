@@ -205,8 +205,10 @@ La tecnología se eligió por **match con el problema**, el **caso real de la em
 
 | Tema | Archivo |
 |------|---------|
-| Decisiones extendidas | `docs/platform/decisiones-arquitectura-agentes.md` |
+| Decisiones extendidas | `docs/decisiones-arquitectura-agentes.md` |
 | Decisiones (1 página) | `docs/platform/decisiones-1-pagina.md` |
+| Report canvas + copilot | `docs/ui/README.md` · `docs/frontend/copilotkit.md` |
+| Tipos intent reporte | `src/shared/types/report-copilot-intent.ts` |
 | UI generativa | `docs/ui/generative-ui.md` |
 | Metodología SDD + IA | `docs/metodologia-desarrollo-con-ia.md` |
 | Runtime CopilotKit | `src/app/api/copilotkit/route.ts` |

@@ -44,4 +44,33 @@ describe("copilot-adk-bridge AG-UI tool events", () => {
       EventType.TOOL_CALL_END,
     ]);
   });
+
+  it("emits START, ARGS, END for frontend bridge tools", () => {
+    const events = mapAdkStructuredEventsToAgUiForTest([
+      {
+        type: AdkEventType.TOOL_CALL,
+        call: {
+          id: "call-frontend-1",
+          name: "suggestReportSectionEdits",
+          args: {
+            blockId: "chart-1",
+            suggestions: [
+              {
+                id: "opt-1",
+                label: "Keep trend",
+                summary: "Explain trend with two data points.",
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const types = events.map((event) => event.type);
+    expect(types).toEqual([
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_ARGS,
+      EventType.TOOL_CALL_END,
+    ]);
+  });
 });

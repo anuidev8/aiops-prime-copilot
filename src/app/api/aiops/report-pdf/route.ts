@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   }
 
   const filename = sanitizePdfFilename(parsed.data.filename ?? "aiops-prime-report.pdf");
-  const pdf = renderCanvasPdf(parsed.data.document);
+  const pdf = await renderCanvasPdf(parsed.data.document);
   const pdfBuffer = pdf.buffer.slice(
     pdf.byteOffset,
     pdf.byteOffset + pdf.byteLength,

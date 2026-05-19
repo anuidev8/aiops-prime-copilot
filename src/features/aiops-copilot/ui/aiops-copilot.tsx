@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   CopilotChat,
   CopilotKit,
   JsonSerializable,
   useAgent,
   useAgentContext,
+  useCopilotKit,
   useFrontendTool,
   useHumanInTheLoop,
 } from "@copilotkit/react-core/v2";
@@ -15,12 +16,38 @@ import { useSyncAdkPipelineChatActivity } from "@/features/agent-pipeline/hooks/
 import { adkPipelineActivityRenderer } from "@/features/agent-pipeline/ui/adk-pipeline-chat-activity";
 import { AnalysisSummaryChatCard } from "@/features/aiops-copilot/ui/analysis-summary-chat-card";
 import { AIOpsCopilotChatView } from "@/features/aiops-copilot/ui/aiops-copilot-chat-view";
+import {
+  ReportSectionSuggestionCard,
+  type ReportEditSuggestion,
+} from "@/features/aiops-copilot/ui/report-section-suggestion-card";
 import { useIncrementalAgentCopilotTools } from "@/features/aiops-copilot/ui/incremental-agent-tools";
 import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
 import { downloadReportCanvasPdf } from "@/shared/api/report-canvas-client";
 import { buildAIOpsWorkspaceState } from "@/shared/lib/build-aiops-workspace-state";
+import { buildReportSectionSnapshot } from "@/shared/lib/build-report-section-snapshot";
+import type { ReportCopilotUiAction } from "@/shared/types/report-copilot-intent";
 
 const ACTIVITY_RENDERERS = [adkPipelineActivityRenderer];
+
+function reportActionMessageId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `report-action-message-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildReportActionPrompt(action: ReportCopilotUiAction): string {
+  if (action.type === "approve") {
+    return `I approved report section "${action.sectionTitle}" (${action.blockId}). Keep this approved and guide me to the next best section to review.`;
+  }
+  if (action.type === "edit") {
+    return `Help me edit report section "${action.sectionTitle}" (${action.blockId}). Give 2-3 clear alternatives I can apply.`;
+  }
+  if (action.type === "ask_why") {
+    return `Ask why for report section "${action.sectionTitle}" (${action.blockId}). Explain the rationale from current session context and this section only.`;
+  }
+  return `I want to reject report section "${action.sectionTitle}" (${action.blockId}). Ask me to confirm in chat before rejecting.`;
+}
 
 function CopilotChatSurface() {
   const {
@@ -42,8 +69,14 @@ function CopilotChatSurface() {
     reportSectionEditing,
     setReportSectionEditing,
     setReportSectionReview,
-    approveReportSection,
-    rejectReportSection,
+    reportCopilotIntent,
+    setReportCopilotIntent,
+    reportCopilotUiAction,
+    clearReportCopilotUiAction,
+    reportRejectPendingBlockId,
+    requestReportReject,
+    confirmReportReject,
+    cancelReportReject,
     lastCanvasEdit,
     result,
     workflow,
@@ -60,6 +93,9 @@ function CopilotChatSurface() {
     isAnalyzing,
   } = useAIOpsSession();
   const { agent } = useAgent({ agentId: "default" });
+  const { copilotkit } = useCopilotKit();
+  const reportActionRunRef = useRef<string | null>(null);
+  const agentIsRunning = agent.isRunning;
   useSyncAdkPipelineChatActivity(agent);
 
   useIncrementalAgentCopilotTools({
@@ -67,6 +103,40 @@ function CopilotChatSurface() {
     onApplyIncremental: applyIncrementalToolResult,
     onWorkflowUpdate: setWorkflowStage,
   });
+
+  useEffect(() => {
+    if (!reportCopilotUiAction) {
+      return;
+    }
+    if (agentIsRunning) {
+      return;
+    }
+    if (reportActionRunRef.current === reportCopilotUiAction.id) {
+      return;
+    }
+
+    reportActionRunRef.current = reportCopilotUiAction.id;
+    agent.addMessage({
+      id: reportActionMessageId(),
+      role: "user",
+      content: buildReportActionPrompt(reportCopilotUiAction),
+    });
+
+    void copilotkit
+      .runAgent({ agent })
+      .finally(() => {
+        clearReportCopilotUiAction(reportCopilotUiAction.id);
+        if (reportActionRunRef.current === reportCopilotUiAction.id) {
+          reportActionRunRef.current = null;
+        }
+      });
+  }, [
+    agent,
+    agentIsRunning,
+    clearReportCopilotUiAction,
+    copilotkit,
+    reportCopilotUiAction,
+  ]);
 
   useFrontendTool({
     name: "setDashboardFocus",
@@ -205,6 +275,8 @@ function CopilotChatSurface() {
       setSelectedCanvasBlockId(match.id);
       setReportSectionEditing(false);
       setReportCanvasMode("present");
+      cancelReportReject();
+      setReportCopilotIntent(null);
       return {
         ok: true,
         message: `Selected section "${match.title}".`,
@@ -215,7 +287,68 @@ function CopilotChatSurface() {
   }, [
     reportCanvas,
     reportSectionReviews,
+    cancelReportReject,
     setReportCanvasMode,
+    setReportCopilotIntent,
+    setReportSectionEditing,
+    setSelectedCanvasBlockId,
+  ]);
+
+  useFrontendTool({
+    name: "startReportSectionEdit",
+    description:
+      "Select a report section and switch the report canvas into edit mode so recommendations can target that section.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      title: z.string().optional(),
+    }),
+    handler: async ({ blockId, title }) => {
+      if (!reportCanvas) {
+        return { ok: false, message: "No report is open." };
+      }
+      const match =
+        (blockId
+          ? reportCanvas.blocks.find((block) => block.id === blockId)
+          : undefined) ??
+        (title
+          ? reportCanvas.blocks.find(
+              (block) => block.title.toLowerCase() === title.toLowerCase(),
+            )
+          : undefined) ??
+        (selectedCanvasBlockId
+          ? reportCanvas.blocks.find((block) => block.id === selectedCanvasBlockId)
+          : undefined);
+
+      if (!match) {
+        return { ok: false, message: "Section not found." };
+      }
+
+      setSelectedCanvasBlockId(match.id);
+      setReportCanvasMode("edit");
+      setReportSectionEditing(true);
+      cancelReportReject();
+      setReportCopilotIntent({
+        type: "help_edit",
+        blockId: match.id,
+        sectionTitle: match.title,
+        blockType: match.type,
+        visualKind: match.type === "chart" ? match.visual?.kind : undefined,
+        requestedAt: new Date().toISOString(),
+      });
+
+      return {
+        ok: true,
+        message: `Editing "${match.title}".`,
+        blockId: match.id,
+        blockType: match.type,
+      };
+    },
+  }, [
+    cancelReportReject,
+    reportCanvas,
+    selectedCanvasBlockId,
+    setReportCanvasMode,
+    setReportCopilotIntent,
     setReportSectionEditing,
     setSelectedCanvasBlockId,
   ]);
@@ -232,6 +365,7 @@ function CopilotChatSurface() {
       value: z.number().optional(),
       unit: z.string().optional(),
       note: z.string().optional(),
+      visualKind: z.enum(["kpi", "bars", "ring", "trend"]).optional(),
     }),
     handler: async (args) => {
       const targetId = args.blockId ?? selectedCanvasBlockId;
@@ -243,6 +377,16 @@ function CopilotChatSurface() {
         return { ok: false, message: "Section not found." };
       }
       setSelectedCanvasBlockId(targetId);
+      setReportSectionEditing(true);
+      setReportCanvasMode("edit");
+      setReportCopilotIntent({
+        type: "help_edit",
+        blockId: block.id,
+        sectionTitle: block.title,
+        blockType: block.type,
+        visualKind: block.type === "chart" ? block.visual?.kind : undefined,
+        requestedAt: new Date().toISOString(),
+      });
       if (block.type === "text") {
         updateCanvasTextBlock(
           targetId,
@@ -258,6 +402,7 @@ function CopilotChatSurface() {
             value: args.value,
             unit: args.unit,
             note: args.note,
+            visualKind: args.visualKind,
           },
           { source: "copilot" },
         );
@@ -273,6 +418,9 @@ function CopilotChatSurface() {
     lastCanvasEdit,
     reportCanvas,
     selectedCanvasBlockId,
+    setReportCanvasMode,
+    setReportCopilotIntent,
+    setReportSectionEditing,
     setSelectedCanvasBlockId,
     updateCanvasChartBlock,
     updateCanvasTextBlock,
@@ -293,10 +441,206 @@ function CopilotChatSurface() {
       setReportSectionReview(targetId, status);
       if (status === "approved") {
         setReportSectionEditing(false);
+        setReportCanvasMode("present");
+        cancelReportReject();
+        setReportCopilotIntent(null);
       }
+      if (status === "needs_review") {
+        requestReportReject(targetId);
+        return {
+          ok: true,
+          message:
+            "Reject is pending confirmation in chat. Call confirmRejectReportSection before applying needs_review.",
+          blockId: targetId,
+          pendingReject: true,
+        };
+      }
+      cancelReportReject();
       return { ok: true, message: `Section marked as ${status}.`, blockId: targetId };
     },
-  }, [selectedCanvasBlockId, setReportSectionEditing, setReportSectionReview]);
+  }, [
+    cancelReportReject,
+    setReportCanvasMode,
+    selectedCanvasBlockId,
+    setReportSectionEditing,
+    setReportSectionReview,
+    setReportCopilotIntent,
+    requestReportReject,
+  ]);
+
+  const reportSectionSnapshot = useMemo(() => {
+    if (!reportCanvas || !selectedCanvasBlockId) return null;
+    const block = reportCanvas.blocks.find((entry) => entry.id === selectedCanvasBlockId);
+    if (!block) return null;
+    const index = reportCanvas.blocks.findIndex((entry) => entry.id === selectedCanvasBlockId);
+    return buildReportSectionSnapshot({
+      block,
+      index: index >= 0 ? index : 0,
+      reviewStatus: reportSectionReviews[selectedCanvasBlockId] ?? "draft",
+      isEditing: reportSectionEditing,
+    });
+  }, [
+    reportCanvas,
+    reportSectionEditing,
+    reportSectionReviews,
+    selectedCanvasBlockId,
+  ]);
+
+  useFrontendTool({
+    name: "suggestReportSectionEdits",
+    description:
+      "Show styled edit recommendations in chat for the selected report section. Call when the user asks for help editing the current section (including KPI/chart fields).",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      suggestions: z
+        .array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            summary: z.string(),
+            proposedTitle: z.string().optional(),
+            proposedContent: z.string().optional(),
+            proposedMetricName: z.string().optional(),
+            proposedValue: z.number().optional(),
+            proposedUnit: z.string().optional(),
+            proposedNote: z.string().optional(),
+            proposedVisualKind: z.enum(["kpi", "bars", "ring", "trend"]).optional(),
+          }),
+        )
+        .min(1),
+    }),
+    handler: async () => ({
+      ok: true,
+      message: "Edit suggestions displayed in chat.",
+    }),
+    render: ({ status, args }) => {
+      if (status !== "complete") {
+        return (
+          <p className="my-2 text-xs text-muted-foreground">Preparing edit suggestions…</p>
+        );
+      }
+
+      const targetId = args.blockId ?? selectedCanvasBlockId;
+      const block = reportCanvas?.blocks.find((entry) => entry.id === targetId);
+      if (!block) {
+        return (
+          <p className="my-2 text-xs text-rose-600">
+            No report section selected. Ask the user to pick a section first.
+          </p>
+        );
+      }
+
+      const suggestions = args.suggestions as ReportEditSuggestion[];
+
+      return (
+        <ReportSectionSuggestionCard
+          sectionTitle={block.title}
+          sectionKind={block.type}
+          suggestions={suggestions}
+          onApply={(item) => {
+            setSelectedCanvasBlockId(targetId!);
+            if (block.type === "text") {
+              updateCanvasTextBlock(
+                targetId!,
+                {
+                  title: item.proposedTitle,
+                  content: item.proposedContent,
+                },
+                { source: "copilot" },
+              );
+            } else {
+              updateCanvasChartBlock(
+                targetId!,
+                {
+                  title: item.proposedTitle,
+                  metricName: item.proposedMetricName,
+                  value: item.proposedValue,
+                  unit: item.proposedUnit,
+                  note: item.proposedNote,
+                  visualKind: item.proposedVisualKind,
+                },
+                { source: "copilot" },
+              );
+            }
+            setReportCopilotIntent(null);
+          }}
+        />
+      );
+    },
+  }, [
+    reportCanvas,
+    selectedCanvasBlockId,
+    setReportCopilotIntent,
+    setSelectedCanvasBlockId,
+    updateCanvasChartBlock,
+    updateCanvasTextBlock,
+  ]);
+
+  useHumanInTheLoop({
+    name: "confirmRejectReportSection",
+    description:
+      "Ask the user to confirm rejecting a report section before marking it needs review.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      reason: z.string(),
+    }),
+    render: ({ status, args, respond }) => {
+      const targetId = args.blockId ?? selectedCanvasBlockId;
+      if (status !== "executing" || !respond || !targetId) {
+        return null;
+      }
+
+      const block = reportCanvas?.blocks.find((entry) => entry.id === targetId);
+      if (!block) {
+        return (
+          <p className="mt-3 text-xs text-rose-600">Section not found for rejection.</p>
+        );
+      }
+
+      return (
+        <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/80 p-4 text-sm">
+          <p className="font-medium text-rose-900">Reject section?</p>
+          <p className="mt-1 text-xs text-rose-800">{args.reason}</p>
+          <p className="mt-2 text-xs text-rose-700">
+            Section: <span className="font-semibold">{block.title}</span>
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white"
+              onClick={() => {
+                setSelectedCanvasBlockId(targetId);
+                setReportCanvasMode("present");
+                setReportSectionEditing(false);
+                confirmReportReject(targetId);
+                void respond({ confirmed: true, blockId: targetId });
+              }}
+            >
+              Confirm reject
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs text-rose-700"
+              onClick={() => {
+                cancelReportReject();
+                void respond({ confirmed: false, blockId: targetId });
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    },
+  }, [
+    cancelReportReject,
+    confirmReportReject,
+    reportCanvas,
+    selectedCanvasBlockId,
+    setReportCanvasMode,
+    setReportSectionEditing,
+    setSelectedCanvasBlockId,
+  ]);
 
   useHumanInTheLoop({
     name: "rewriteSelectedCanvasText",
@@ -574,6 +918,9 @@ function CopilotChatSurface() {
           selectedCanvasBlockId,
           reportSectionReviews,
           reportSectionEditing,
+          reportCopilotIntent,
+          reportCopilotUiAction,
+          reportRejectPendingBlockId,
           lastCanvasEdit,
           workflow,
           agentPipeline,
@@ -597,6 +944,9 @@ function CopilotChatSurface() {
       selectedCanvasBlockId,
       reportSectionReviews,
       reportSectionEditing,
+      reportCopilotIntent,
+      reportCopilotUiAction,
+      reportRejectPendingBlockId,
       lastCanvasEdit,
       workflow,
       agentPipeline,
@@ -617,13 +967,17 @@ function CopilotChatSurface() {
 
   useAgentContext({
     description:
-      "Report Agent editing context: selected section, review statuses, and whether the user is actively editing",
+      "Report Agent: selected section snapshot, review state, edit/reject intents, and pending reject confirmation",
     value: {
       reportLayerOpen,
       selectedBlockId: selectedCanvasBlockId,
       sectionEditing: reportSectionEditing,
       sectionReviews: reportSectionReviews,
       lastEdit: lastCanvasEdit,
+      selectedSection: reportSectionSnapshot,
+      copilotIntent: reportCopilotIntent,
+      latestUiAction: reportCopilotUiAction,
+      rejectPendingBlockId: reportRejectPendingBlockId,
       sections: workspaceState.reportDraft.sections,
     } as unknown as JsonSerializable,
   });

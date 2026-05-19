@@ -97,13 +97,13 @@ export function createReportCanvasDocument(params: {
   const { report, query } = params;
   const now = new Date().toISOString();
 
-  const headline = report?.projectSummary
-    ? `Executive summary — ${report.projectSummary.projectName}`
-    : "Executive summary";
-  const narrativeText =
-    report?.narrative?.trim() || "Add the PRIME narrative here.";
-  const businessSummaryText =
-    report?.businessSummary?.trim() || "Add the business summary here.";
+  const resolvedProjectName =
+    report?.projectSummary?.projectName ?? query?.resolvedProjectName ?? "";
+  const headline = resolvedProjectName
+    ? `Executive summary — ${resolvedProjectName}`
+    : "";
+  const narrativeText = report?.narrative?.trim() ?? "";
+  const businessSummaryText = report?.businessSummary?.trim() ?? "";
 
   const topKpis = (report?.kpis ?? []).slice(0, 3);
   const kpiBlocks: ReportCanvasChartBlock[] = topKpis.map((kpi, index) => ({

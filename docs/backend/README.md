@@ -69,7 +69,7 @@ src/backend/
 | Module | Role |
 |--------|------|
 | `aiops-coordinator.ts` | `LlmAgent` + 3 sub-agents |
-| `aiops-coordinator-tools.ts` | `FunctionTool` → use cases |
+| `aiops-coordinator-tools.ts` | Backend `FunctionTool` → use cases + **frontend bridge** stubs (`createFrontendBridgeTool`) |
 | `aiops-coordinator-prompt.ts` | Instructions per worker |
 | `copilot-adk-bridge.ts` | `InMemoryRunner` + AG-UI stream |
 | `copilot-adk-bridge-mapper.ts` | Event translation |
@@ -79,6 +79,13 @@ src/backend/
 | `adk-prime-reporter-agent.ts` | Reporter port adapter |
 
 **Availability:** `isAdkOrchestratorAvailable()` — requires API key or Vertex env (see `vertex-config.ts`).
+
+**Tool groups in `createAIOpsCoordinatorTools`:**
+
+- **Server:** `listProjectOwnership`, `runTelemetryAgent`, `runAnalystAgent`, `runReporterAgent`, `analyzeLogs`
+- **Bridge (handler en cliente):** dashboard focus, report canvas open/PDF, section select/edit/review, `suggestReportSectionEdits`, `confirmRejectReportSection`, canvas HITL helpers, `showRecommendationCard`, `renderAnalysisSummary`
+
+Names in `COPILOT_BACKEND_TOOL_NAMES` vs `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES` (`copilot-adk-bridge-mapper.ts`).
 
 ---
 

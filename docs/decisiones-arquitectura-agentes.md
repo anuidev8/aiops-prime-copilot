@@ -1,7 +1,7 @@
 # Documento de decisiones — Agentes AIOps Prime (versión extendida)
 
-> **Entregable del reto (≤1 página):** [decisiones-1-pagina.md](./decisiones-1-pagina.md)  
-> **Índice de entregables:** [../ENTREGABLES.md](../ENTREGABLES.md)
+> **Entregable del reto (≤1 página):** [decisiones-1-pagina.md](./platform/decisiones-1-pagina.md)  
+> **Índice de entregables:** [ENTREGABLES.md](./ENTREGABLES.md)
 
 **Alcance:** problema · diseño elegido · alternativas · trade-offs  
 **Proyecto:** `aiops-prime-copilot`
@@ -119,7 +119,8 @@ La elección de CopilotKit responde a que el valor principal del producto está 
 | **Dos fuentes de contexto** (ADK session + JSON en Copilot) | Robustez del chat; requiere mantener `runId` alineado |
 | **Pipeline no bloqueado por ADK** | UX incremental; reporter puede correr con `analyses: []` si el usuario salta pasos (use cases devuelven error o reporte débil) |
 | **Sin CopilotKit MCP / agente remoto separado** | ADK in-process en Next; menos operación, más acoplamiento |
-| **HITL en cliente, no en ADK** | `confirmRunAnalyst` / `confirmRunReporter` viven en React; el coordinador confía en contexto + reglas de prompt |
+| **HITL en cliente, no en ADK** | `confirmRunAnalyst` / `confirmRunReporter` / `confirmRejectReportSection` viven en React; el coordinador confía en contexto + reglas de prompt |
+| **Tools de report canvas en ADK como puente** | El coordinador conoce `suggestReportSectionEdits`, etc.; la ejecución sigue en el navegador para mantener el overlay como fuente de verdad |
 
 ---
 

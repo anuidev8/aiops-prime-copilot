@@ -84,11 +84,28 @@ See [design-tokens.md](./design-tokens.md).
 
 ---
 
+## Report Canvas (overlay)
+
+Editable PRIME report built from `generateReportCanvas()` (`src/shared/lib/report-canvas.ts`) after `runReporterAgent` or manual open.
+
+| Piece | Path |
+|-------|------|
+| Shell + section list | `src/features/report-canvas/ui/report-canvas.tsx` |
+| Section detail (Approve, Edit, Ask why, Reject) | `report-section-detail.tsx` |
+| Chart visuals (KPI, bars, ring, trend) | `report-canvas-visuals.tsx` |
+| PDF export | `src/shared/lib/report-pdf.ts` → `POST /api/aiops/report-pdf` |
+| Review status types | `src/shared/types/report-section.ts` |
+
+**Copilot integration:** section actions queue `ReportCopilotUiAction` or set `ReportCopilotIntent`; the chat agent receives them via `useAgentContext` and responds with tools (`suggestReportSectionEdits`, explanations, HITL reject). See [CopilotKit — Report Canvas](../frontend/copilotkit.md#4b-report-canvas--copilot).
+
+---
+
 ## Rules of thumb (UX contract)
 
 1. **Dashboard is source of truth for data** — After telemetry/analyst/reporter, chat stays short; blocks and charts update via `artifactCache` / generative UI.
 2. **Report lives in the overlay** — `openReportCanvas` / report layer, not long narrative in chat.
 3. **HITL is client-side** — Confirmations render in React; ADK sees outcomes via context on the next turn.
+4. **Report edits flow through the copilot** — Prefer `suggestReportSectionEdits` and suggestion cards over dumping full section text in chat.
 
 ---
 

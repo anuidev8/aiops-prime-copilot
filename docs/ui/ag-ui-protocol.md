@@ -136,12 +136,33 @@ Registered on:
 
 ---
 
+## Tool name sets (mapper)
+
+| Set | Constant | Runs on |
+|-----|----------|---------|
+| Pipeline / domain | `COPILOT_BACKEND_TOOL_NAMES` | Server use cases |
+| UI / report canvas | `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES` | Browser (`useFrontendTool`) |
+
+`isCopilotTool()` is true for both. ADK-internal tools (e.g. `transfer_to_agent`) are filtered out and do not emit AG-UI tool events.
+
+---
+
 ## How to add a new AG-UI-facing tool
 
-1. **Backend:** Add `FunctionTool` in `aiops-coordinator-tools.ts` and wire use case.
-2. **Mapper:** Add name to `COPILOT_BACKEND_TOOL_NAMES` if it should show in chat.
-3. **Client:** Add `useRenderTool` / handler in `incremental-agent-tools.tsx` and map result via `coerce-agent-tool-result.ts`.
-4. **Optional:** Extend `toolToPipelineAgent` in mapper for `STATE_SNAPSHOT` labels.
+### Server-side tool
+
+1. Add `FunctionTool` in `aiops-coordinator-tools.ts` and wire use case.
+2. Add name to `COPILOT_BACKEND_TOOL_NAMES`.
+3. `useRenderTool` + `applyIncrementalToolResult` on the client.
+
+### Browser-only tool (with ADK awareness)
+
+1. `useFrontendTool` in `aiops-copilot.tsx`.
+2. Matching `createFrontendBridgeTool` in `aiops-coordinator-tools.ts`.
+3. Add name to `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES`.
+4. Document in `aiops-coordinator-prompt.ts`.
+
+Optional: extend `toolToPipelineAgent` in the mapper for `STATE_SNAPSHOT` labels (backend tools only).
 
 ---
 

@@ -12,7 +12,6 @@ Documentación pensada para evaluadores — alineada 1:1 con los entregables del
 |-----------|-------------|
 | [**ENTREGABLES.md**](./ENTREGABLES.md) | Índice: repo, diagramas, decisiones, demo |
 | [**metodologia-desarrollo-con-ia.md**](./metodologia-desarrollo-con-ia.md) | SDD (Notion), uso de IA, capturas de referencia |
-| [**decisiones-1-pagina.md**](./platform/decisiones-1-pagina.md) | Decisiones de arquitectura (≤1 página) |
 | [**diagramas/**](./platform/diagramas/) | Diagramas oficiales ADK + CopilotKit (PNG) |
 
 ---
@@ -34,7 +33,7 @@ Documentación pensada para evaluadores — alineada 1:1 con los entregables del
 
 - [Arquitectura de plataforma](./platform/README.md) — diagramas y mapa de componentes
 - [Decisiones (1 página)](./platform/decisiones-1-pagina.md) — entregable del reto
-- [Decisiones (extendido)](./platform/decisiones-arquitectura-agentes.md) — alternativas y detalle para Q&A
+- [Decisiones (extendido)](./decisiones-arquitectura-agentes.md) — alternativas y detalle para Q&A
 - [Metodología SDD y uso de IA](./metodologia-desarrollo-con-ia.md) — criterio “uso de IA en el proceso”
 
 ### Frontend (CopilotKit)
@@ -44,10 +43,11 @@ Documentación pensada para evaluadores — alineada 1:1 con los entregables del
 
 ### UI
 
-- [Capa UI](./ui/README.md)
+- [Capa UI](./ui/README.md) — incluye report canvas y copilot de secciones
 - [Protocolo AG-UI](./ui/ag-ui-protocol.md)
 - [UI generativa](./ui/generative-ui.md)
 - [Design tokens](./ui/design-tokens.md)
+- [CopilotKit (report canvas)](./frontend/copilotkit.md#4b-report-canvas--copilot)
 
 ### Lógica
 
@@ -68,6 +68,6 @@ src/
 ├── features/               # Copilot, dashboards, report canvas
 ├── processes/              # AIOpsSessionProvider (orquestación cliente)
 ├── entities/               # UI reutilizable (charts, PRIME)
-├── shared/                 # Tipos, clientes, builders UI generativa
+├── shared/                 # Tipos, clientes, report canvas/PDF, UI generativa
 └── backend/                # domain → application → infrastructure → interface
 ```

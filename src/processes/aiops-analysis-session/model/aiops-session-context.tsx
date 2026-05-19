@@ -62,6 +62,11 @@ import {
   AIOpsSessionArtifactCache,
 } from "@/shared/types/session-artifact-cache";
 import { ReportCanvasDocument } from "@/shared/types/report-canvas";
+import type {
+  ReportCopilotIntent,
+  ReportCopilotUiAction,
+  ReportCopilotUiActionType,
+} from "@/shared/types/report-copilot-intent";
 import {
   initializeSectionReviews,
   type ReportSectionReviewStatus,
@@ -172,7 +177,14 @@ export interface ReportCanvasEditEvent {
   id: string;
   blockId: string;
   blockType: "text" | "chart";
-  field: "title" | "content" | "metricName" | "value" | "unit" | "note";
+  field:
+    | "title"
+    | "content"
+    | "metricName"
+    | "value"
+    | "unit"
+    | "note"
+    | "visualKind";
   previousValue: string | number;
   newValue: string | number;
   source: ReportCanvasEditSource;
@@ -239,6 +251,21 @@ interface AIOpsSessionContextValue {
   ) => void;
   approveReportSection: (blockId: string) => void;
   rejectReportSection: (blockId: string) => void;
+  reportCopilotIntent: ReportCopilotIntent | null;
+  setReportCopilotIntent: (intent: ReportCopilotIntent | null) => void;
+  reportCopilotUiAction: ReportCopilotUiAction | null;
+  queueReportCopilotUiAction: (action: {
+    type: ReportCopilotUiActionType;
+    blockId: string;
+    sectionTitle: string;
+    blockType: "text" | "chart";
+    visualKind?: "kpi" | "bars" | "ring" | "trend";
+  }) => void;
+  clearReportCopilotUiAction: (actionId?: string) => void;
+  reportRejectPendingBlockId: string | null;
+  requestReportReject: (blockId: string) => void;
+  confirmReportReject: (blockId: string) => void;
+  cancelReportReject: () => void;
   lastCanvasEdit: ReportCanvasEditEvent | null;
   generateReportCanvas: (options?: GenerateReportCanvasOptions) => Promise<void>;
   updateCanvasTextBlock: (
@@ -254,6 +281,7 @@ interface AIOpsSessionContextValue {
       value?: number;
       unit?: string;
       note?: string;
+      visualKind?: "kpi" | "bars" | "ring" | "trend";
     },
     options?: { source?: ReportCanvasEditSource },
   ) => void;
@@ -322,6 +350,13 @@ function canvasEditId(): string {
   return `canvas-edit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function reportActionId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `report-action-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const [artifactCache, setArtifactCache] = useState<AIOpsSessionArtifactCache>(
     createEmptyArtifactCache,
@@ -340,6 +375,14 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const [selectedCanvasBlockId, setSelectedCanvasBlockId] = useState<string | null>(null);
   const [reportSectionReviews, setReportSectionReviews] = useState<ReportSectionReviews>({});
   const [reportSectionEditing, setReportSectionEditing] = useState(false);
+  const [reportCopilotIntent, setReportCopilotIntent] = useState<ReportCopilotIntent | null>(
+    null,
+  );
+  const [reportCopilotUiAction, setReportCopilotUiAction] =
+    useState<ReportCopilotUiAction | null>(null);
+  const [reportRejectPendingBlockId, setReportRejectPendingBlockId] = useState<string | null>(
+    null,
+  );
   const [lastCanvasEdit, setLastCanvasEdit] = useState<ReportCanvasEditEvent | null>(null);
   const [dashboardFocus, setDashboardFocusState] = useState<DashboardFocusState>({
     scope: "overview",
@@ -349,7 +392,9 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   });
   const [result, setResult] = useState<AnalyzeLogsResult | null>(null);
   const artifactCacheRef = useRef(artifactCache);
-  artifactCacheRef.current = artifactCache;
+  useEffect(() => {
+    artifactCacheRef.current = artifactCache;
+  }, [artifactCache]);
   const [dashboardHighlight, setDashboardHighlight] =
     useState<DashboardHighlightState | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -587,6 +632,49 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const rejectReportSection = useCallback((blockId: string) => {
     setReportSectionReviews((current) => ({ ...current, [blockId]: "needs_review" }));
     setReportSectionEditing(false);
+    setReportRejectPendingBlockId(null);
+    setReportCopilotIntent(null);
+  }, []);
+
+  const queueReportCopilotUiAction = useCallback(
+    (action: {
+      type: ReportCopilotUiActionType;
+      blockId: string;
+      sectionTitle: string;
+      blockType: "text" | "chart";
+      visualKind?: "kpi" | "bars" | "ring" | "trend";
+    }) => {
+      setReportCopilotUiAction({
+        ...action,
+        id: reportActionId(),
+        triggeredAt: new Date().toISOString(),
+      });
+    },
+    [],
+  );
+
+  const clearReportCopilotUiAction = useCallback((actionId?: string) => {
+    setReportCopilotUiAction((current) => {
+      if (!actionId) return null;
+      if (!current) return current;
+      return current.id === actionId ? null : current;
+    });
+  }, []);
+
+  const requestReportReject = useCallback((blockId: string) => {
+    setReportRejectPendingBlockId(blockId);
+  }, []);
+
+  const confirmReportReject = useCallback(
+    (blockId: string) => {
+      rejectReportSection(blockId);
+    },
+    [rejectReportSection],
+  );
+
+  const cancelReportReject = useCallback(() => {
+    setReportRejectPendingBlockId(null);
+    setReportCopilotIntent(null);
   }, []);
 
   const updateCanvasTextBlock = useCallback(
@@ -656,6 +744,7 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
         value?: number;
         unit?: string;
         note?: string;
+        visualKind?: "kpi" | "bars" | "ring" | "trend";
       },
       options?: { source?: ReportCanvasEditSource },
     ) => {
@@ -741,6 +830,27 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
               updatedAt,
             };
             nextBlock.note = fields.note;
+          }
+
+          const currentVisualKind = block.visual?.kind ?? "kpi";
+          if (
+            fields.visualKind !== undefined &&
+            fields.visualKind !== currentVisualKind
+          ) {
+            lastEditInBlock = {
+              id: canvasEditId(),
+              blockId,
+              blockType: "chart",
+              field: "visualKind",
+              previousValue: currentVisualKind,
+              newValue: fields.visualKind,
+              source,
+              updatedAt,
+            };
+            nextBlock.visual = {
+              ...block.visual,
+              kind: fields.visualKind,
+            };
           }
 
           return nextBlock;
@@ -1031,6 +1141,15 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       setReportSectionReview,
       approveReportSection,
       rejectReportSection,
+      reportCopilotIntent,
+      setReportCopilotIntent,
+      reportCopilotUiAction,
+      queueReportCopilotUiAction,
+      clearReportCopilotUiAction,
+      reportRejectPendingBlockId,
+      requestReportReject,
+      confirmReportReject,
+      cancelReportReject,
       lastCanvasEdit,
       generateReportCanvas,
       updateCanvasTextBlock,
@@ -1069,6 +1188,15 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       setReportSectionReview,
       approveReportSection,
       rejectReportSection,
+      reportCopilotIntent,
+      setReportCopilotIntent,
+      reportCopilotUiAction,
+      queueReportCopilotUiAction,
+      clearReportCopilotUiAction,
+      reportRejectPendingBlockId,
+      requestReportReject,
+      confirmReportReject,
+      cancelReportReject,
       lastCanvasEdit,
       result,
       isAnalyzing,

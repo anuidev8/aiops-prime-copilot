@@ -136,8 +136,8 @@ flowchart LR
 
   subgraph Frontend["Frontend tools (browser only)"]
     F1["setDashboardFocus"]
-    F2["openReportCanvas"]
-    F3["downloadReportPdf"]
+    F2["openReportCanvas / downloadReportPdf"]
+    F3["report section tools"]
     F4["showRecommendationCard"]
     F5["renderAnalysisSummary"]
   end
@@ -147,6 +147,7 @@ flowchart LR
     H2["confirmRunReporter"]
     H3["rewriteSelectedCanvasText"]
     H4["suggestSelectedCanvasChartKpi"]
+    H5["confirmRejectReportSection"]
   end
 ```
 
@@ -179,13 +180,46 @@ Handler runs **in the browser**; optional `render` for inline status.
 |------|----------------|
 | `setDashboardFocus` | Updates `dashboardFocus` (overview / project / service) |
 | `openReportCanvas` | Opens report layer or calls `generateReportCanvas()` |
-| `downloadReportPdf` | `downloadReportCanvasPdf()` API client |
+| `downloadReportPdf` | `downloadReportCanvasPdf()` → `POST /api/aiops/report-pdf` |
+| `selectReportSection` | Focus section by `blockId` or `title` |
+| `startReportSectionEdit` | Puts selected section in edit mode |
+| `updateReportSection` | Applies title/content/KPI fields to a block |
+| `setReportSectionReviewStatus` | `approved` · `review` · `needs_review` · `draft` |
+| `suggestReportSectionEdits` | Renders suggestion cards in chat (2–3 options) |
+| `confirmRejectReportSection` | HITL gate before marking section rejected |
 | `showRecommendationCard` | `dashboardFocus.scope = "recommendation"` |
 | `renderAnalysisSummary` | Renders `AnalysisSummaryChatCard` in chat |
 
 Defined in: `src/features/aiops-copilot/ui/aiops-copilot.tsx`
 
-The model must **call** these tools; they are registered client-side only (not in ADK `FunctionTool` list unless you add matching server stubs).
+**ADK bridge:** the same names are registered on the coordinator via `createFrontendBridgeTool` in `aiops-coordinator-tools.ts` so the model can call them when ADK is active. The bridge mapper lists them in `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES`; execution still happens in the browser through `useFrontendTool`.
+
+---
+
+## 4b. Report Canvas ↔ Copilot
+
+The report overlay (`src/features/report-canvas/`) shares session state with the chat through `reportCopilotIntent` and `reportCopilotUiAction` (`src/shared/types/report-copilot-intent.ts`).
+
+### User actions in the canvas
+
+| UI control | Session | Chat behavior |
+|------------|---------|----------------|
+| **Ask why** | `queueReportCopilotUiAction({ type: "ask_why", … })` | Auto-sends a prompt; coordinator explains from `selectedSection` + analysis cache only |
+| **Edit / Help edit** | `setReportCopilotIntent({ type: "help_edit", … })` | Context in `useAgentContext`; model calls `suggestReportSectionEdits` |
+| **Approve** | Updates review status locally | Optional follow-up in chat |
+| **Reject** | `rejectPendingBlockId` + `confirmRejectReportSection` HITL | Agent must not reject silently |
+
+`AIOpsCopilot` watches `reportCopilotUiAction` and calls `agent.sendMessage` with a structured prompt (`buildReportActionPrompt`) so the user does not have to retype intent.
+
+### Context fields (agent turn)
+
+Included in `sharedContext` / workspace state:
+
+- `reportCopilotIntent` — active intent from canvas (`ask_why` \| `help_edit`)
+- `reportCopilotUiAction` — last queued UI action (consumed after send)
+- `selectedCanvasBlockId`, `rejectPendingBlockId`, `reportCanvasDocument`
+
+Coordinator prompt rules: `src/backend/infrastructure/adk/aiops-coordinator-prompt.ts` (section **REPORT AGENT**).
 
 ### Human-in-the-loop — `useHumanInTheLoop`
 
@@ -197,8 +231,11 @@ Pauses the agent until the user clicks **Approve / Deny** (`respond()`).
 | `confirmRunReporter` | Before PRIME report generation |
 | `rewriteSelectedCanvasText` | Approve canvas text edits |
 | `suggestSelectedCanvasChartKpi` | Approve chart KPI changes |
+| `confirmRejectReportSection` | Approve rejecting a report section |
 
 HITL UI is **React-only** — not enforced inside ADK. The coordinator relies on prompts + context; confirmations are initiated from tool calls the model makes.
+
+Suggestion cards: `src/features/aiops-copilot/ui/report-section-suggestion-card.tsx` (apply one proposed edit from chat).
 
 ---
 

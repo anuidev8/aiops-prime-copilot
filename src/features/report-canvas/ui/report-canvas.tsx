@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Clock, Settings } from "lucide-react";
 import { useMemo } from "react";
 import { ReportAgentProgress } from "@/features/report-canvas/ui/report-agent-progress";
 import { ReportCanvasTransform } from "@/features/report-canvas/ui/report-canvas-transform";
@@ -9,7 +8,6 @@ import { ReportSectionDetail } from "@/features/report-canvas/ui/report-section-
 import { ReportSectionsList } from "@/features/report-canvas/ui/report-sections-list";
 import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
 import { downloadReportCanvasPdf } from "@/shared/api/report-canvas-client";
-import type { ReportCanvasChartBlock } from "@/shared/types/report-canvas";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -25,7 +23,10 @@ export function ReportCanvas() {
     selectedCanvasBlockId,
     setSelectedCanvasBlockId,
     approveReportSection,
-    rejectReportSection,
+    requestReportReject,
+    cancelReportReject,
+    setReportCopilotIntent,
+    queueReportCopilotUiAction,
     setReportSectionReview,
     updateCanvasTextBlock,
     updateCanvasChartBlock,
@@ -62,13 +63,6 @@ export function ReportCanvas() {
     if (!reportCanvas || !selectedBlock) return 0;
     return reportCanvas.blocks.findIndex((block) => block.id === selectedBlock.id);
   }, [reportCanvas, selectedBlock]);
-
-  const chartBlocks = useMemo(
-    () =>
-      (reportCanvas?.blocks.filter((block) => block.type === "chart") ??
-        []) as ReportCanvasChartBlock[],
-    [reportCanvas],
-  );
 
   const isEditingSelected =
     reportSectionEditing && selectedBlock?.id === selectedCanvasBlockId;
@@ -117,33 +111,11 @@ export function ReportCanvas() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+              onClick={() => void downloadReportCanvasPdf(reportCanvas)}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
             >
-              <Settings className="h-4 w-4" />
-              Report settings
+              Export PDF
             </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-            >
-              <Clock className="h-4 w-4" />
-              Version history
-            </button>
-            <motion.div className="flex overflow-hidden rounded-lg shadow-sm">
-              <button
-                type="button"
-                onClick={() => void downloadReportCanvasPdf(reportCanvas)}
-                className="border-r border-indigo-700 bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-              >
-                Export
-              </button>
-              <button
-                type="button"
-                className="flex items-center bg-indigo-700 px-2 py-2 text-white transition-colors hover:bg-indigo-800"
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </motion.div>
             <button
               type="button"
               onClick={() => setReportLayerOpen(false)}
@@ -175,6 +147,9 @@ export function ReportCanvas() {
           onSelect={(blockId) => {
             setSelectedCanvasBlockId(blockId);
             setReportSectionEditing(false);
+            setReportCanvasMode("present");
+            setReportCopilotIntent(null);
+            cancelReportReject();
           }}
         />
 
@@ -185,22 +160,93 @@ export function ReportCanvas() {
             reviewStatus={reportSectionReviews[selectedBlock.id] ?? "draft"}
             generatedAt={reportCanvas.generatedAt}
             isEditing={isEditingSelected}
-            chartBlocks={chartBlocks}
-            onApprove={() => approveReportSection(selectedBlock.id)}
-            onReject={() => rejectReportSection(selectedBlock.id)}
+            onApprove={() => {
+              approveReportSection(selectedBlock.id);
+              cancelReportReject();
+              setReportCopilotIntent(null);
+              queueReportCopilotUiAction({
+                type: "approve",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+              });
+            }}
+            onReject={() => {
+              requestReportReject(selectedBlock.id);
+              setReportCanvasMode("present");
+              setReportSectionEditing(false);
+              setReportCopilotIntent(null);
+              queueReportCopilotUiAction({
+                type: "reject",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+              });
+            }}
             onEdit={() => {
               if (isEditingSelected) {
                 setReportSectionEditing(false);
                 setReportCanvasMode("present");
+                setReportCopilotIntent(null);
                 return;
               }
               setReportSectionEditing(true);
               setReportCanvasMode("edit");
+              setReportCopilotIntent({
+                type: "help_edit",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+                requestedAt: new Date().toISOString(),
+              });
+              queueReportCopilotUiAction({
+                type: "edit",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+              });
             }}
             onAskWhy={() => {
+              setReportCopilotIntent({
+                type: "ask_why",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+                requestedAt: new Date().toISOString(),
+              });
+              queueReportCopilotUiAction({
+                type: "ask_why",
+                blockId: selectedBlock.id,
+                sectionTitle: selectedBlock.title,
+                blockType: selectedBlock.type,
+                visualKind:
+                  selectedBlock.type === "chart"
+                    ? selectedBlock.visual?.kind
+                    : undefined,
+              });
               setDashboardFocus({
                 scope: "overview",
-                reason: `User asked why for report section "${selectedBlock.title}" (${selectedBlock.id}).`,
+                reason: `User asked why for report section "${selectedBlock.title}" (${selectedBlock.id}). Explain using session analysis and this section's current content only.`,
                 source: "manual",
               });
             }}

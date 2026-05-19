@@ -12,6 +12,7 @@ export interface ReportEditSuggestion {
   proposedValue?: number;
   proposedUnit?: string;
   proposedNote?: string;
+  proposedVisualKind?: "kpi" | "bars" | "ring" | "trend";
 }
 
 interface ReportSectionSuggestionCardProps {

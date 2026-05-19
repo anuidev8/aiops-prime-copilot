@@ -25,7 +25,7 @@ flowchart LR
 2. **Análisis** — causa raíz y remediación por incidente (LLM acotado por rol).
 3. **Reporting PRIME** — KPIs, narrativa ejecutiva y analytics por empresa/proyecto.
 4. **Copilot** — flujo completo o paso a paso, con confirmaciones humanas (HITL) cuando aplica.
-5. **Workspace unificado** — overview operativo, incidentes, catálogo de proyectos, UI generativa y **report canvas** exportable a PDF.
+5. **Workspace unificado** — overview operativo, incidentes, catálogo de proyectos, UI generativa y **report canvas** (secciones editables, revisión Approve/Ask why/Reject, sugerencias vía copilot) exportable a PDF.
 
 Detalle de pipeline, scope y caché: **[docs/logic/README.md](./docs/logic/README.md)** · KPIs y health score: **[docs/logic/project-company-analytics-spec.md](./docs/logic/project-company-analytics-spec.md)**
 
@@ -43,7 +43,7 @@ Detalle de pipeline, scope y caché: **[docs/logic/README.md](./docs/logic/READM
 | **Estado** | `artifactCache` (cliente) + store por `runId` (servidor) | Mismos artefactos para API, stream y Copilot |
 | **Calidad** | Vitest, Playwright, ESLint | Unitarios, E2E (`/aiops`), build CI |
 
-Arquitectura ampliada: **[docs/platform/README.md](./docs/platform/README.md)** · Diagramas: **[docs/platform/diagramas/](./docs/platform/diagramas/)** · Decisiones: **[docs/platform/decisiones-arquitectura-agentes.md](./docs/platform/decisiones-arquitectura-agentes.md)**
+Arquitectura ampliada: **[docs/platform/README.md](./docs/platform/README.md)** · Diagramas: **[docs/platform/diagramas/](./docs/platform/diagramas/)** · Decisiones: **[docs/decisiones-arquitectura-agentes.md](./docs/decisiones-arquitectura-agentes.md)**
 
 ---
 
@@ -82,7 +82,8 @@ Estado del runtime: `GET /api/aiops/runtime-status`
 |------------|-----------|
 | Índice completo | [docs/ENTREGABLES.md](./docs/ENTREGABLES.md) |
 | Diagramas (ADK + CopilotKit) | [docs/platform/diagramas/](./docs/platform/diagramas/) |
-| Decisiones | [docs/platform/decisiones-arquitectura-agentes.md](./docs/platform/decisiones-arquitectura-agentes.md) |
+| Decisiones (1 pág.) | [docs/platform/decisiones-1-pagina.md](./docs/platform/decisiones-1-pagina.md) |
+| Decisiones (extendido) | [docs/decisiones-arquitectura-agentes.md](./docs/decisiones-arquitectura-agentes.md) |
 | Demo en vivo | [docs/DEMO-SUSTENTACION.md](./docs/DEMO-SUSTENTACION.md) |
 | Uso de IA / SDD | [docs/metodologia-desarrollo-con-ia.md](./docs/metodologia-desarrollo-con-ia.md) |
 

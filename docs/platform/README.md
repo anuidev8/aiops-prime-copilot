@@ -2,7 +2,7 @@
 
 Cómo encajan **CopilotKit**, **Google ADK** y el **pipeline de dominio AIOps** en una sola aplicación Next.js.
 
-> **Entregable del reto:** diagramas en [diagramas/](./diagramas/) · decisiones en [decisiones-1-pagina.md](./decisiones-1-pagina.md) · versión extendida en [decisiones-arquitectura-agentes.md](./decisiones-arquitectura-agentes.md)
+> **Entregable del reto:** diagramas en [diagramas/](./diagramas/) · decisiones en [decisiones-1-pagina.md](./decisiones-1-pagina.md) · versión extendida en [decisiones-arquitectura-agentes.md](../decisiones-arquitectura-agentes.md)
 
 ---
 
@@ -124,9 +124,19 @@ flowchart LR
   R --> r1["runReporterAgent"]
   C --> l1["listProjectOwnership"]
   C --> f1["analyzeLogs"]
+  C --> f2["report canvas bridge tools"]
 ```
 
 Los workers **no se llaman entre sí**. Comparten datos solo vía `runId` + store en servidor (ver [logic/README.md](../logic/README.md)).
+
+### Herramientas del coordinador (resumen)
+
+| Grupo | Tools | Ejecuta en |
+|-------|-------|------------|
+| **Backend** | `listProjectOwnership`, `runTelemetryAgent`, `runAnalystAgent`, `runReporterAgent`, `analyzeLogs` | Servidor (use cases) |
+| **Puente frontend** | `setDashboardFocus`, `openReportCanvas`, `downloadReportPdf`, `selectReportSection`, `startReportSectionEdit`, `updateReportSection`, `setReportSectionReviewStatus`, `suggestReportSectionEdits`, `confirmRejectReportSection`, `rewriteSelectedCanvasText`, `suggestSelectedCanvasChartKpi`, `showRecommendationCard`, `renderAnalysisSummary` | Navegador (`useFrontendTool`); ADK emite la llamada y el bridge la reenvía a AG-UI |
+
+Las tools de **puente** están definidas en `aiops-coordinator-tools.ts` con `createFrontendBridgeTool` para que el modelo las conozca en el prompt; el handler real vive en `aiops-copilot.tsx`.
 
 ---
 

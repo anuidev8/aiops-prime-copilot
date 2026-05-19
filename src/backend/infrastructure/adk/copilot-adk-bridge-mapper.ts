@@ -10,7 +10,30 @@ export const COPILOT_BACKEND_TOOL_NAMES = new Set([
   "analyzeLogs",
 ]);
 
+export const COPILOT_FRONTEND_BRIDGE_TOOL_NAMES = new Set([
+  "setDashboardFocus",
+  "openReportCanvas",
+  "downloadReportPdf",
+  "selectReportSection",
+  "startReportSectionEdit",
+  "updateReportSection",
+  "setReportSectionReviewStatus",
+  "suggestReportSectionEdits",
+  "confirmRejectReportSection",
+  "rewriteSelectedCanvasText",
+  "suggestSelectedCanvasChartKpi",
+  "showRecommendationCard",
+  "renderAnalysisSummary",
+]);
+
 /** ADK-internal tools (e.g. transfer_to_agent) must not emit AG-UI tool events. */
+export function isCopilotTool(toolName: string): boolean {
+  return (
+    COPILOT_BACKEND_TOOL_NAMES.has(toolName) ||
+    COPILOT_FRONTEND_BRIDGE_TOOL_NAMES.has(toolName)
+  );
+}
+
 export function isCopilotBackendTool(toolName: string): boolean {
   return COPILOT_BACKEND_TOOL_NAMES.has(toolName);
 }
@@ -83,7 +106,7 @@ export function* mapAdkStructuredToAgUi(
     const callId = structured.call.id ?? randomUUID();
     const toolName = structured.call.name ?? "unknown_tool";
 
-    if (!isCopilotBackendTool(toolName)) {
+    if (!isCopilotTool(toolName)) {
       return;
     }
 
@@ -102,10 +125,12 @@ export function* mapAdkStructuredToAgUi(
         toolCallId: callId,
         toolCallName: toolName,
       };
-      yield {
-        type: EventType.STATE_SNAPSHOT,
-        snapshot: buildPredictiveSnapshot(toolName, "started"),
-      };
+      if (isCopilotBackendTool(toolName)) {
+        yield {
+          type: EventType.STATE_SNAPSHOT,
+          snapshot: buildPredictiveSnapshot(toolName, "started"),
+        };
+      }
     }
 
     const args =
@@ -161,7 +186,7 @@ export function* mapAdkStructuredToAgUi(
       content: serialized,
     };
 
-    if (toolState.name) {
+    if (toolState.name && isCopilotBackendTool(toolState.name)) {
       yield {
         type: EventType.STATE_SNAPSHOT,
         snapshot: buildPredictiveSnapshot(toolState.name, "completed"),

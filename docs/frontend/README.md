@@ -4,7 +4,7 @@ Client-side architecture for the AIOps workspace (Next.js App Router, React 19, 
 
 | Doc | Topic |
 |-----|--------|
-| [**CopilotKit on the frontend**](./copilotkit.md) | Provider, hooks, tools, HITL, session sync, chat UI |
+| [**CopilotKit on the frontend**](./copilotkit.md) | Provider, hooks, tools, HITL, report canvas bridge, chat UI |
 | [UI layer (overview)](../ui/README.md) | Workspace layout, generative UI, design tokens |
 | [AG-UI protocol](../ui/ag-ui-protocol.md) | Streaming events (server ↔ client) |
 
@@ -35,6 +35,8 @@ CopilotKit **must** render inside `AIOpsSessionProvider` so hooks can read `arti
 | `src/processes/aiops-analysis-session/` | Session state consumed by copilot hooks |
 | `src/shared/lib/coerce-agent-tool-result.ts` | Normalize backend tool JSON → cache |
 | `src/shared/lib/build-aiops-workspace-state.ts` | Structured state for `useAgentContext` |
+| `src/shared/types/report-copilot-intent.ts` | Canvas → chat intents (`ask_why`, `help_edit`) and UI actions |
+| `src/features/report-canvas/` | Report overlay; queues actions consumed by `AIOpsCopilot` |
 
 ---
 

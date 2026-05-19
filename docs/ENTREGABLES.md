@@ -51,7 +51,7 @@ Narrativa complementaria (Mermaid y secuencias): [platform/README.md](./platform
 ## Documento de decisiones
 
 - **≤1 página:** [platform/decisiones-1-pagina.md](./platform/decisiones-1-pagina.md)
-- **Extendido:** [platform/decisiones-arquitectura-agentes.md](./platform/decisiones-arquitectura-agentes.md)
+- **Extendido:** [decisiones-arquitectura-agentes.md](./decisiones-arquitectura-agentes.md)
 
 ---
 

@@ -1,7 +1,14 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "gsap";
 
 import { slideDeck } from "../slides-data";
 import styles from "./page.module.css";
+
+gsap.registerPlugin(useGSAP);
 
 function SlideArt({ id }: { id: number }) {
   return (
@@ -12,18 +19,40 @@ function SlideArt({ id }: { id: number }) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <linearGradient id={`bg-${id}`} x1="48" y1="32" x2="592" y2="328" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id={`bg-${id}`}
+          x1="48"
+          y1="32"
+          x2="592"
+          y2="328"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop stopColor="#DBEBFF" />
           <stop offset="1" stopColor="#BFD9FF" />
         </linearGradient>
-        <linearGradient id={`shape-${id}`} x1="120" y1="70" x2="490" y2="290" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id={`shape-${id}`}
+          x1="120"
+          y1="70"
+          x2="490"
+          y2="290"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop stopColor="#1D4ED8" />
           <stop offset="1" stopColor="#0EA5E9" />
         </linearGradient>
       </defs>
 
       <rect x="16" y="16" width="608" height="328" rx="26" fill={`url(#bg-${id})`} />
-      <rect x="34" y="34" width="572" height="292" rx="18" stroke="#8FB4F8" strokeWidth="2" />
+      <rect
+        x="34"
+        y="34"
+        width="572"
+        height="292"
+        rx="18"
+        stroke="#8FB4F8"
+        strokeWidth="2"
+      />
 
       {id === 1 ? (
         <>
@@ -46,7 +75,15 @@ function SlideArt({ id }: { id: number }) {
           <rect x="114" y="218" width="118" height="14" rx="7" fill="#1D4ED8" opacity="0.62" />
           <circle cx="428" cy="178" r="72" fill={`url(#shape-${id})`} opacity="0.92" />
           <circle cx="428" cy="178" r="36" fill="#EAF3FF" />
-          <rect x="458" y="208" width="58" height="16" rx="8" transform="rotate(38 458 208)" fill="#0B5AD5" />
+          <rect
+            x="458"
+            y="208"
+            width="58"
+            height="16"
+            rx="8"
+            transform="rotate(38 458 208)"
+            fill="#0B5AD5"
+          />
           <circle cx="428" cy="178" r="12" fill="#0B5AD5" />
         </>
       ) : null}
@@ -147,7 +184,13 @@ function SlideArt({ id }: { id: number }) {
           <rect x="382" y="128" width="128" height="20" rx="10" fill="#EAF3FF" />
           <rect x="382" y="160" width="108" height="20" rx="10" fill="#EAF3FF" opacity="0.88" />
           <rect x="382" y="192" width="144" height="20" rx="10" fill="#EAF3FF" opacity="0.78" />
-          <path d="M304 118L336 180L304 242" stroke="#1E3A8A" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M304 118L336 180L304 242"
+            stroke="#1E3A8A"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </>
       ) : null}
 
@@ -167,9 +210,104 @@ function SlideArt({ id }: { id: number }) {
 }
 
 export default function DiapositivasVisualPage() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const slide = slideDeck[currentIndex];
+
+  const goNext = useCallback(() => {
+    setDirection(1);
+    setCurrentIndex((prev) => (prev + 1) % slideDeck.length);
+  }, []);
+
+  const goPrevious = useCallback(() => {
+    setDirection(-1);
+    setCurrentIndex((prev) => (prev - 1 + slideDeck.length) % slideDeck.length);
+  }, []);
+
+  const goToSlide = useCallback(
+    (index: number) => {
+      if (index === currentIndex) {
+        return;
+      }
+
+      setDirection(index > currentIndex ? 1 : -1);
+      setCurrentIndex(index);
+    },
+    [currentIndex],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        goNext();
+      }
+
+      if (event.key === "ArrowLeft") {
+        goPrevious();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [goNext, goPrevious]);
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.fromTo(
+          "[data-slider-card]",
+          {
+            autoAlpha: 0,
+            x: direction > 0 ? 54 : -54,
+            scale: 0.985,
+          },
+          {
+            autoAlpha: 1,
+            x: 0,
+            scale: 1,
+            duration: 0.58,
+            ease: "power3.out",
+          },
+        );
+
+        gsap.fromTo(
+          "[data-slide-item]",
+          {
+            autoAlpha: 0,
+            y: 16,
+          },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.42,
+            ease: "power2.out",
+            stagger: 0.055,
+            delay: 0.1,
+          },
+        );
+      });
+
+      mm.add("(prefers-reduced-motion: reduce)", () => {
+        gsap.set("[data-slider-card], [data-slide-item]", { clearProps: "all" });
+      });
+
+      return () => {
+        mm.revert();
+      };
+    },
+    {
+      scope: rootRef,
+      dependencies: [currentIndex, direction],
+      revertOnUpdate: true,
+    },
+  );
+
   return (
     <main className={styles.page}>
-      <div className={styles.container}>
+      <div className={styles.container} ref={rootRef}>
         <header>
           <div className={styles.topBar}>
             <span className={styles.badge}>Presentacion AIOps Prime</span>
@@ -178,77 +316,112 @@ export default function DiapositivasVisualPage() {
             </Link>
           </div>
 
-          <h1 className={styles.heading}>Diapositivas visuales</h1>
+          <h1 className={styles.heading}>Diapositivas visuales en slider GSAP</h1>
           <p className={styles.subheading}>
-            Misma narrativa del deck, pero con imagenes ilustrativas generadas
-            para reforzar cada mensaje.
+            Usa flechas del teclado o controles para navegar. Cada slide entra
+            con transicion suave y direccional.
           </p>
         </header>
 
-        <div className={styles.slides}>
-          {slideDeck.map((slide) => (
-            <article className={styles.slide} key={slide.id}>
-              <div className={styles.slideGrid}>
-                <section className={styles.content}>
-                  <header className={styles.slideHeader}>
-                    <span className={styles.slideNumber}>{slide.id}</span>
-                    <h2 className={styles.slideTitle}>{slide.title}</h2>
-                  </header>
+        <section className={styles.sliderMeta}>
+          <span>
+            Diapositiva <strong>{currentIndex + 1}</strong> de {slideDeck.length}
+          </span>
+          <div className={styles.progressBar}>
+            <div
+              className={styles.progressValue}
+              style={{ width: `${((currentIndex + 1) / slideDeck.length) * 100}%` }}
+            />
+          </div>
+        </section>
 
-                  {slide.table ? (
-                    <div className={styles.tableWrap}>
-                      <table className={styles.table}>
-                        <thead>
-                          <tr>
-                            {slide.table.columns.map((column) => (
-                              <th key={column} scope="col">
-                                {column}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {slide.table.rows.map((row, rowIndex) => (
-                            <tr key={`${slide.id}-${rowIndex}`}>
-                              {row.map((cell, cellIndex) => (
-                                <td key={`${slide.id}-${rowIndex}-${cellIndex}`}>
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
+        <article className={styles.slide} data-slider-card key={slide.id}>
+          <div className={styles.slideGrid}>
+            <section className={styles.content}>
+              <header className={styles.slideHeader} data-slide-item>
+                <span className={styles.slideNumber}>{slide.id}</span>
+                <h2 className={styles.slideTitle}>{slide.title}</h2>
+              </header>
+
+              {slide.table ? (
+                <div className={styles.tableWrap} data-slide-item>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        {slide.table.columns.map((column) => (
+                          <th key={column} scope="col">
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slide.table.rows.map((row, rowIndex) => (
+                        <tr key={`${slide.id}-${rowIndex}`}>
+                          {row.map((cell, cellIndex) => (
+                            <td key={`${slide.id}-${rowIndex}-${cellIndex}`}>
+                              {cell}
+                            </td>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
-
-                  {slide.bullets ? (
-                    <ul className={styles.points}>
-                      {slide.bullets.map((point) => (
-                        <li key={point}>{point}</li>
+                        </tr>
                       ))}
-                    </ul>
-                  ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
 
-                  {slide.decision ? (
-                    <p className={styles.decision}>{slide.decision}</p>
-                  ) : null}
+              {slide.bullets ? (
+                <ul className={styles.points}>
+                  {slide.bullets.map((point) => (
+                    <li data-slide-item key={point}>
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
-                  {slide.closingLine ? (
-                    <p className={styles.closing}>{slide.closingLine}</p>
-                  ) : null}
+              {slide.decision ? (
+                <p className={styles.decision} data-slide-item>
+                  {slide.decision}
+                </p>
+              ) : null}
 
-                  <p className={styles.speakerNote}>
-                    <strong>Nota para hablar:</strong> &quot;
-                    {slide.speakerNote}&quot;
-                  </p>
-                </section>
+              {slide.closingLine ? (
+                <p className={styles.closing} data-slide-item>
+                  {slide.closingLine}
+                </p>
+              ) : null}
 
-                <aside className={styles.artPanel}>
-                  <SlideArt id={slide.id} />
-                </aside>
-              </div>
-            </article>
+              <p className={styles.speakerNote} data-slide-item>
+                <strong>Nota para hablar:</strong> &quot;{slide.speakerNote}&quot;
+              </p>
+            </section>
+
+            <aside className={styles.artPanel} data-slide-item>
+              <SlideArt id={slide.id} />
+            </aside>
+          </div>
+        </article>
+
+        <nav className={styles.controls} aria-label="Controles del slider">
+          <button className={styles.controlButton} onClick={goPrevious} type="button">
+            Anterior
+          </button>
+          <button className={styles.controlButton} onClick={goNext} type="button">
+            Siguiente
+          </button>
+        </nav>
+
+        <div className={styles.dots} aria-label="Ir a una diapositiva">
+          {slideDeck.map((item, index) => (
+            <button
+              aria-label={`Ir a diapositiva ${item.id}`}
+              aria-pressed={currentIndex === index}
+              className={currentIndex === index ? styles.dotActive : styles.dot}
+              key={item.id}
+              onClick={() => goToSlide(index)}
+              type="button"
+            />
           ))}
         </div>
       </div>
