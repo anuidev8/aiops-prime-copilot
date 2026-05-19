@@ -1,122 +1,65 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   CopilotChat,
-  CopilotChatViewProps,
   CopilotKit,
   JsonSerializable,
   useAgent,
   useAgentContext,
-  useComponent,
+  useFrontendTool,
+  useHumanInTheLoop,
 } from "@copilotkit/react-core/v2";
 import { z } from "zod";
-import { adkPipelineActivityRenderer } from "@/features/agent-pipeline/ui/adk-pipeline-chat-activity";
 import { useSyncAdkPipelineChatActivity } from "@/features/agent-pipeline/hooks/use-sync-adk-pipeline-chat-activity";
-import { AgentPipelineLive } from "@/features/agent-pipeline/ui/agent-pipeline-live";
+import { adkPipelineActivityRenderer } from "@/features/agent-pipeline/ui/adk-pipeline-chat-activity";
+import { AnalysisSummaryChatCard } from "@/features/aiops-copilot/ui/analysis-summary-chat-card";
+import { AIOpsCopilotChatView } from "@/features/aiops-copilot/ui/aiops-copilot-chat-view";
 import { useIncrementalAgentCopilotTools } from "@/features/aiops-copilot/ui/incremental-agent-tools";
-import {
-  AnalysisWorkflowStage,
-  useAIOpsSession,
-} from "@/processes/aiops-analysis-session/model/aiops-session-context";
+import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
+import { downloadReportCanvasPdf } from "@/shared/api/report-canvas-client";
+import { buildAIOpsWorkspaceState } from "@/shared/lib/build-aiops-workspace-state";
 
-function normalizeAgentState(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}
-
-function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
-  // Replace the default input with our custom voice-like input if we want, or just wrap it.
-  // The user wanted the UI to look exactly like the design.
-  return (
-    <div className="flex flex-col h-full relative">
-      <div className="flex-1 overflow-y-auto pb-32">
-        <CopilotChat.View {...props} />
-      </div>
-      
-      {/* Voice Input visualizer overlay at the bottom */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-3xl glass-strong rounded-[2rem] px-6 py-4 flex items-center gap-4 z-50 neon-ring">
-        <span className="text-muted-foreground text-sm shrink-0 hidden sm:block">Listening…</span>
-        
-        {/* Waveform visualizer */}
-        <div className="flex items-end gap-0.5 h-8 flex-1 justify-center pointer-events-none">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <span
-              key={`l-${i}`}
-              className="w-0.5 rounded-full bg-primary/60 animate-wave"
-              style={{
-                height: `${20 + Math.sin(i / 2) * 40 + 30}%`,
-                animationDelay: `${i * 60}ms`,
-              }}
-            />
-          ))}
-
-          <div className="mx-4 relative shrink-0">
-             <div className="absolute inset-0 bg-primary rounded-full blur-[20px] opacity-40" />
-             <button type="button" aria-label="Voice input" className="relative w-14 h-14 rounded-full bg-gradient-primary text-primary-foreground border border-primary/40 flex items-center justify-center shadow-[0_12px_40px_-8px_hsl(var(--primary)/0.6)] hover:scale-105 transition-transform z-10">
-               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-             </button>
-          </div>
-          
-          {Array.from({ length: 14 }).map((_, i) => (
-            <span
-              key={`r-${i}`}
-              className="w-0.5 rounded-full bg-primary/50 animate-wave"
-              style={{
-                height: `${20 + Math.cos(i / 2) * 40 + 30}%`,
-                animationDelay: `${(i + 14) * 60}ms`,
-              }}
-            />
-          ))}
-        </div>
-        
-        <span className="text-muted-foreground text-xs text-right max-w-[140px] shrink-0 hidden md:block">Ask follow-up or request actions</span>
-      </div>
-
-      {/* Since we can't easily replace the internal input without losing CopilotKit logic, 
-          we hide the default input with CSS and make the voice overlay clickable to focus it? 
-          Or we just style the default input to look like a subtle bar below the voice visualizer. */}
-      <style dangerouslySetInnerHTML={{__html: `
-        .copilotKitInput {
-          opacity: 0.1 !important;
-          position: absolute;
-          bottom: 0;
-          z-index: 100;
-          width: 100%;
-        }
-        .copilotKitInput:focus-within {
-          opacity: 1 !important;
-          background: rgba(15, 23, 42, 0.95) !important;
-        }
-      `}} />
-    </div>
-  );
-}
-
-const AIOpsCopilotChatView = Object.assign(
-  AIOpsCopilotChatViewInner,
-  CopilotChat.View,
-);
+const ACTIVITY_RENDERERS = [adkPipelineActivityRenderer];
 
 function CopilotChatSurface() {
   const {
     artifactCache,
     projectCatalog,
     projectCatalogLoading,
+    portfolioHealth,
     selectedScope,
+    dashboardFocus,
+    workspaceNavId,
+    reportLayerOpen,
+    setReportLayerOpen,
+    reportCanvas,
+    reportCanvasMode,
+    setReportCanvasMode,
+    selectedCanvasBlockId,
+    setSelectedCanvasBlockId,
+    reportSectionReviews,
+    reportSectionEditing,
+    setReportSectionEditing,
+    setReportSectionReview,
+    approveReportSection,
+    rejectReportSection,
+    lastCanvasEdit,
     result,
     workflow,
     applyResultFromCopilot,
     applyIncrementalToolResult,
     setWorkflowStage,
+    setDashboardFocus,
+    generateReportCanvas,
+    reportCanvasGenerating,
+    updateCanvasTextBlock,
+    updateCanvasChartBlock,
     agentPipeline,
     incidentProgress,
     isAnalyzing,
   } = useAIOpsSession();
   const { agent } = useAgent({ agentId: "default" });
-
   useSyncAdkPipelineChatActivity(agent);
 
   useIncrementalAgentCopilotTools({
@@ -125,12 +68,488 @@ function CopilotChatSurface() {
     onWorkflowUpdate: setWorkflowStage,
   });
 
-  useComponent({
-    name: "showAdkAgentPipeline",
-    description: "Render the live ADK agent pipeline.",
-    parameters: z.object({ headline: z.string().optional() }),
-    render: () => <AgentPipelineLive isAnalyzing={isAnalyzing} pipeline={agentPipeline} />,
-  });
+  useFrontendTool({
+    name: "setDashboardFocus",
+    description:
+      "Update the in-place dashboard focus to overview, project, or service without changing sidebar navigation.",
+    parameters: z.object({
+      scope: z.enum(["overview", "project", "service"]).default("overview"),
+      projectId: z.string().optional(),
+      projectName: z.string().optional(),
+      serviceName: z.string().optional(),
+      metricName: z.string().optional(),
+      reason: z.string().optional(),
+    }),
+    handler: async (args) => {
+      const projectName =
+        args.projectName ??
+        (args.projectId
+          ? projectCatalog.find((project) => project.id === args.projectId)?.name
+          : undefined);
+
+      setDashboardFocus({
+        scope: args.scope,
+        projectId: args.projectId,
+        projectName,
+        serviceName: args.serviceName,
+        metricName: args.metricName,
+        reason: args.reason ?? `Copilot set dashboard focus to ${args.scope}.`,
+        source: "copilot",
+      });
+
+      return {
+        ok: true,
+        message: `Dashboard focus set to ${args.scope}.`,
+      };
+    },
+  }, [projectCatalog, setDashboardFocus]);
+
+  useFrontendTool({
+    name: "openReportCanvas",
+    description:
+      "Open the in-dashboard report layer with structured PRIME sections (narrative, KPIs, recommendations). Call after runReporterAgent instead of pasting the full report in chat.",
+    parameters: z.object({}),
+    handler: async () => {
+      if (reportLayerOpen && reportCanvas && !reportCanvasGenerating) {
+        return {
+          ok: true,
+          message: "Report canvas is already open in the workspace.",
+        };
+      }
+      if (reportCanvas && !reportLayerOpen && !reportCanvasGenerating) {
+        setReportCanvasMode("present");
+        setReportLayerOpen(true);
+        return {
+          ok: true,
+          message: "Report canvas opened in presentation mode.",
+        };
+      }
+      await generateReportCanvas();
+      return {
+        ok: true,
+        message:
+          "Report layer opened with structured sections. User can edit on top of the dashboard.",
+      };
+    },
+    render: ({ status }) => {
+      if (status === "inProgress" || status === "executing" || reportCanvasGenerating) {
+        return (
+          <div className="my-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+            <span className="inline-flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-300 opacity-50" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
+              </span>
+              Building report layer on the dashboard…
+            </span>
+          </div>
+        );
+      }
+      if (status === "complete") {
+        return (
+          <p className="my-2 text-xs text-emerald-700">
+            Report layer ready — edit structured sections in the dashboard overlay.
+          </p>
+        );
+      }
+      return null;
+    },
+  }, [
+    generateReportCanvas,
+    reportCanvas,
+    reportCanvasGenerating,
+    reportLayerOpen,
+    setReportCanvasMode,
+    setReportLayerOpen,
+  ]);
+
+  useFrontendTool({
+    name: "downloadReportPdf",
+    description: "Generate and download the current report canvas as PDF.",
+    parameters: z.object({
+      filename: z.string().optional(),
+    }),
+    handler: async ({ filename }) => {
+      if (!reportCanvas) {
+        return { ok: false, message: "No report canvas available." };
+      }
+      await downloadReportCanvasPdf(reportCanvas, filename);
+      return { ok: true, message: "PDF generated and downloaded." };
+    },
+  }, [reportCanvas]);
+
+  useFrontendTool({
+    name: "selectReportSection",
+    description:
+      "Focus a report section by block id or title so the user can review or edit it. Use when the user refers to a report section.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      title: z.string().optional(),
+    }),
+    handler: async ({ blockId, title }) => {
+      if (!reportCanvas) {
+        return { ok: false, message: "No report is open." };
+      }
+      const match =
+        (blockId
+          ? reportCanvas.blocks.find((block) => block.id === blockId)
+          : undefined) ??
+        (title
+          ? reportCanvas.blocks.find(
+              (block) => block.title.toLowerCase() === title.toLowerCase(),
+            )
+          : undefined);
+      if (!match) {
+        return { ok: false, message: "Section not found." };
+      }
+      setSelectedCanvasBlockId(match.id);
+      setReportSectionEditing(false);
+      setReportCanvasMode("present");
+      return {
+        ok: true,
+        message: `Selected section "${match.title}".`,
+        blockId: match.id,
+        reviewStatus: reportSectionReviews[match.id] ?? "draft",
+      };
+    },
+  }, [
+    reportCanvas,
+    reportSectionReviews,
+    setReportCanvasMode,
+    setReportSectionEditing,
+    setSelectedCanvasBlockId,
+  ]);
+
+  useFrontendTool({
+    name: "updateReportSection",
+    description:
+      "Update the currently selected report section fields (title, narrative, or KPI values). Only call when a section is selected.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      title: z.string().optional(),
+      content: z.string().optional(),
+      metricName: z.string().optional(),
+      value: z.number().optional(),
+      unit: z.string().optional(),
+      note: z.string().optional(),
+    }),
+    handler: async (args) => {
+      const targetId = args.blockId ?? selectedCanvasBlockId;
+      if (!targetId || !reportCanvas) {
+        return { ok: false, message: "No report section selected." };
+      }
+      const block = reportCanvas.blocks.find((entry) => entry.id === targetId);
+      if (!block) {
+        return { ok: false, message: "Section not found." };
+      }
+      setSelectedCanvasBlockId(targetId);
+      if (block.type === "text") {
+        updateCanvasTextBlock(
+          targetId,
+          { title: args.title, content: args.content },
+          { source: "copilot" },
+        );
+      } else {
+        updateCanvasChartBlock(
+          targetId,
+          {
+            title: args.title,
+            metricName: args.metricName,
+            value: args.value,
+            unit: args.unit,
+            note: args.note,
+          },
+          { source: "copilot" },
+        );
+      }
+      return {
+        ok: true,
+        message: `Updated section "${block.title}".`,
+        blockId: targetId,
+        lastEdit: lastCanvasEdit,
+      };
+    },
+  }, [
+    lastCanvasEdit,
+    reportCanvas,
+    selectedCanvasBlockId,
+    setSelectedCanvasBlockId,
+    updateCanvasChartBlock,
+    updateCanvasTextBlock,
+  ]);
+
+  useFrontendTool({
+    name: "setReportSectionReviewStatus",
+    description: "Approve, reject, or mark a report section for review.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      status: z.enum(["approved", "review", "needs_review", "draft"]),
+    }),
+    handler: async ({ blockId, status }) => {
+      const targetId = blockId ?? selectedCanvasBlockId;
+      if (!targetId) {
+        return { ok: false, message: "No section specified." };
+      }
+      setReportSectionReview(targetId, status);
+      if (status === "approved") {
+        setReportSectionEditing(false);
+      }
+      return { ok: true, message: `Section marked as ${status}.`, blockId: targetId };
+    },
+  }, [selectedCanvasBlockId, setReportSectionEditing, setReportSectionReview]);
+
+  useHumanInTheLoop({
+    name: "rewriteSelectedCanvasText",
+    description:
+      "Human-approved rewrite for a selected text block in the report canvas.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      title: z.string().optional(),
+      content: z.string(),
+    }),
+    render: ({ status, args, respond }) => {
+      const targetId = args.blockId ?? selectedCanvasBlockId;
+      const targetBlock = reportCanvas?.blocks.find((block) => block.id === targetId);
+      if (status !== "executing" || !respond || !targetId) {
+        return null;
+      }
+
+      if (!targetBlock || targetBlock.type !== "text") {
+        return (
+          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            Selected block is not a text block. Choose a text block first.
+          </div>
+        );
+      }
+
+      return (
+        <div className="mt-3 rounded-xl border border-border/50 bg-secondary/30 p-4 text-sm">
+          <p className="font-medium text-foreground">Approve text rewrite?</p>
+          <p className="mt-2 text-xs text-muted-foreground">Current title: {targetBlock.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Proposed title: {args.title ?? targetBlock.title}
+          </p>
+          <div className="mt-2 rounded-lg border border-border/40 bg-background/70 p-2 text-xs text-muted-foreground">
+            {args.content}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+              onClick={() => {
+                setSelectedCanvasBlockId(targetId);
+                updateCanvasTextBlock(targetId, {
+                  title: args.title,
+                  content: args.content,
+                }, { source: "hitl" });
+                void respond({ approved: true, blockId: targetId });
+              }}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-border/50 px-3 py-1.5 text-xs text-muted-foreground"
+              onClick={() => void respond({ approved: false, blockId: targetId })}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      );
+    },
+  }, [
+    reportCanvas,
+    selectedCanvasBlockId,
+    setSelectedCanvasBlockId,
+    updateCanvasTextBlock,
+  ]);
+
+  useHumanInTheLoop({
+    name: "suggestSelectedCanvasChartKpi",
+    description:
+      "Human-approved KPI suggestion for a selected chart block in the report canvas.",
+    parameters: z.object({
+      blockId: z.string().optional(),
+      title: z.string().optional(),
+      metricName: z.string(),
+      value: z.number(),
+      unit: z.string(),
+      note: z.string().optional(),
+    }),
+    render: ({ status, args, respond }) => {
+      const targetId = args.blockId ?? selectedCanvasBlockId;
+      const targetBlock = reportCanvas?.blocks.find((block) => block.id === targetId);
+      if (status !== "executing" || !respond || !targetId) {
+        return null;
+      }
+
+      if (!targetBlock || targetBlock.type !== "chart") {
+        return (
+          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            Selected block is not a chart block. Choose a chart block first.
+          </div>
+        );
+      }
+
+      return (
+        <div className="mt-3 rounded-xl border border-border/50 bg-secondary/30 p-4 text-sm">
+          <p className="font-medium text-foreground">Approve KPI suggestion?</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {args.metricName}: {args.value}
+            {args.unit}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{args.note ?? "No note"}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+              onClick={() => {
+                setSelectedCanvasBlockId(targetId);
+                updateCanvasChartBlock(targetId, {
+                  title: args.title,
+                  metricName: args.metricName,
+                  value: args.value,
+                  unit: args.unit,
+                  note: args.note,
+                }, { source: "hitl" });
+                void respond({ approved: true, blockId: targetId });
+              }}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-border/50 px-3 py-1.5 text-xs text-muted-foreground"
+              onClick={() => void respond({ approved: false, blockId: targetId })}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      );
+    },
+  }, [
+    reportCanvas,
+    selectedCanvasBlockId,
+    setSelectedCanvasBlockId,
+    updateCanvasChartBlock,
+  ]);
+
+  useFrontendTool({
+    name: "showRecommendationCard",
+    description: "Show a recommendation card in the dynamic dashboard slot.",
+    parameters: z.object({
+      title: z.string(),
+      priority: z.enum(["P0", "P1", "P2"]).default("P1"),
+      riskLevel: z.enum(["high", "medium", "low"]).default("medium"),
+      content: z.string(),
+      projectId: z.string().optional(),
+      projectName: z.string().optional(),
+      reason: z.string().optional(),
+    }),
+    handler: async (args) => {
+      const projectName =
+        args.projectName ??
+        (args.projectId
+          ? projectCatalog.find((project) => project.id === args.projectId)?.name
+          : undefined);
+
+      setDashboardFocus({
+        scope: "recommendation",
+        projectId: args.projectId,
+        projectName,
+        recommendationTitle: args.title,
+        recommendationPriority: args.priority,
+        recommendationRiskLevel: args.riskLevel,
+        recommendationContent: args.content,
+        reason: args.reason ?? "Copilot surfaced a recommendation card.",
+        source: "copilot",
+      });
+
+      return {
+        ok: true,
+        message: `Recommendation card "${args.title}" displayed.`,
+      };
+    },
+  }, [projectCatalog, setDashboardFocus]);
+
+  const workspaceState = useMemo(
+    () =>
+      buildAIOpsWorkspaceState({
+        navId: workspaceNavId,
+        reportLayerOpen,
+        dashboardFocus,
+        selectedScope,
+        workflow,
+        agentPipeline,
+        incidentProgress,
+        isAnalyzing,
+        reportCanvas,
+        reportCanvasGenerating,
+        reportCanvasMode,
+        selectedCanvasBlockId,
+        reportSectionEditing,
+        reportSectionReviews,
+        lastCanvasEdit,
+        artifactCache,
+        projectCatalog,
+        portfolioHealth,
+      }),
+    [
+      workspaceNavId,
+      reportLayerOpen,
+      dashboardFocus,
+      selectedScope,
+      workflow,
+      agentPipeline,
+      incidentProgress,
+      isAnalyzing,
+      reportCanvas,
+      reportCanvasGenerating,
+      reportCanvasMode,
+      selectedCanvasBlockId,
+      reportSectionEditing,
+      reportSectionReviews,
+      lastCanvasEdit,
+      artifactCache,
+      projectCatalog,
+      portfolioHealth,
+    ],
+  );
+
+  useFrontendTool({
+    name: "renderAnalysisSummary",
+    description:
+      "Render a generative UI summary card in chat that mirrors dashboard KPIs (projects, services, incidents, anomalies, estimated cost). Call when the user asks for analisi, analysis summary, or today's overview.",
+    parameters: z.object({
+      reason: z.string().optional(),
+    }),
+    handler: async () => ({
+      ok: true,
+      message: "Analysis summary card rendered in chat.",
+      summary: workspaceState.analysisSummary,
+    }),
+    render: ({ status }) => {
+      if (status !== "complete") {
+        return (
+          <p className="my-2 text-xs text-muted-foreground">
+            Building analysis summary…
+          </p>
+        );
+      }
+
+      return (
+        <AnalysisSummaryChatCard
+          summary={workspaceState.analysisSummary}
+          onViewReport={() => {
+            setReportLayerOpen(true);
+            void generateReportCanvas();
+          }}
+        />
+      );
+    },
+  }, [workspaceState.analysisSummary, generateReportCanvas, setReportLayerOpen]);
 
   const sharedContext = useMemo(
     () =>
@@ -144,7 +563,18 @@ function CopilotChatSurface() {
           kpis: result?.primeReport.kpis ?? artifactCache.primeReport?.kpis ?? [],
           projectCatalog,
           projectCatalogLoading,
+          portfolioHealth,
+          analysisSummary: workspaceState.analysisSummary,
           selectedScope,
+          dashboardFocus,
+          workspaceNavId,
+          reportLayerOpen,
+          reportCanvas,
+          reportCanvasMode,
+          selectedCanvasBlockId,
+          reportSectionReviews,
+          reportSectionEditing,
+          lastCanvasEdit,
           workflow,
           agentPipeline,
           incidentProgress,
@@ -156,7 +586,18 @@ function CopilotChatSurface() {
       result,
       projectCatalog,
       projectCatalogLoading,
+      portfolioHealth,
+      workspaceState.analysisSummary,
       selectedScope,
+      dashboardFocus,
+      workspaceNavId,
+      reportLayerOpen,
+      reportCanvas,
+      reportCanvasMode,
+      selectedCanvasBlockId,
+      reportSectionReviews,
+      reportSectionEditing,
+      lastCanvasEdit,
       workflow,
       agentPipeline,
       incidentProgress,
@@ -165,32 +606,50 @@ function CopilotChatSurface() {
   );
 
   useAgentContext({
-    description: "Current AIOps session artifact cache",
+    description: "Current AIOps session artifact cache and dashboard viewport",
     value: sharedContext,
   });
 
+  useAgentContext({
+    description: "Structured workspace state for chat-with-your-data",
+    value: workspaceState as unknown as JsonSerializable,
+  });
+
+  useAgentContext({
+    description:
+      "Report Agent editing context: selected section, review statuses, and whether the user is actively editing",
+    value: {
+      reportLayerOpen,
+      selectedBlockId: selectedCanvasBlockId,
+      sectionEditing: reportSectionEditing,
+      sectionReviews: reportSectionReviews,
+      lastEdit: lastCanvasEdit,
+      sections: workspaceState.reportDraft.sections,
+    } as unknown as JsonSerializable,
+  });
+
   useEffect(() => {
-    const baseState = normalizeAgentState(agent.state);
     agent.setState({
-      ...baseState,
-      aiopsWorkflow: workflow,
-      latestScope: result?.query ?? null,
-      selectedScope,
-      projectCatalog,
+      ...workspaceState,
+      selectedCanvasBlockId,
     });
-  }, [agent, workflow, result, selectedScope, projectCatalog]);
+  }, [agent, workspaceState, selectedCanvasBlockId]);
 
   return (
-    <div className="w-full h-full flex flex-col relative">
+    <div className="flex h-full min-h-0 w-full flex-col">
       <CopilotChat
         chatView={AIOpsCopilotChatView}
-        labels={{ chatInputPlaceholder: 'Type a command...' }}
+        labels={{
+          chatInputPlaceholder: reportLayerOpen
+            ? "Ask about this report…"
+            : "Ask about your data…",
+          welcomeMessageText: "How can I help with your operations workspace?",
+          modalHeaderTitle: "AIOps Copilot",
+        }}
       />
     </div>
   );
 }
-
-const aiopsActivityRenderers = [adkPipelineActivityRenderer] as const;
 
 export function AIOpsCopilot() {
   const runtimeUrl = process.env.NEXT_PUBLIC_COPILOT_RUNTIME_URL ?? "/api/copilotkit";
@@ -200,7 +659,7 @@ export function AIOpsCopilot() {
       runtimeUrl={runtimeUrl}
       useSingleEndpoint
       debug={false}
-      renderActivityMessages={[...aiopsActivityRenderers]}
+      renderActivityMessages={ACTIVITY_RENDERERS}
     >
       <CopilotChatSurface />
     </CopilotKit>

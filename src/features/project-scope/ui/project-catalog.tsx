@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
 import { ProjectOwnershipViewModel } from "@/shared/types/aiops";
 import { Panel } from "@/shared/ui/panel";
@@ -25,18 +25,10 @@ export function ProjectCatalog() {
     selectedScope,
     setSelectedScope,
   } = useAIOpsSession();
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!projectCatalogLoading && projectCatalog.length === 0) {
-      setLoadError("Could not load projects.");
-    } else {
-      setLoadError(null);
-    }
-  }, [projectCatalog, projectCatalogLoading]);
 
   const projects = projectCatalog;
   const loading = projectCatalogLoading;
+  const loadError = !loading && projects.length === 0 ? "Could not load projects." : null;
 
   const grouped = useMemo(() => {
     const map = new Map<string, ProjectOwnershipViewModel[]>();
@@ -82,7 +74,7 @@ export function ProjectCatalog() {
 
   return (
     <Panel
-      title="Your Projects"
+      title="Projects"
       subtitle="Pick a project to run telemetry, analysis, and PRIME reporting on its services"
     >
       {loading ? (
@@ -90,14 +82,14 @@ export function ProjectCatalog() {
           {Array.from({ length: 4 }).map((_, index) => (
             <div
               key={index}
-              className="h-28 animate-pulse rounded-xl border border-slate-800/60 bg-slate-900/50"
+              className="h-28 animate-pulse rounded-xl border border-border bg-secondary/40"
             />
           ))}
         </div>
       ) : null}
 
       {loadError ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {loadError}
         </p>
       ) : null}
@@ -106,7 +98,7 @@ export function ProjectCatalog() {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.companyId}>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 {group.label}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -124,14 +116,14 @@ export function ProjectCatalog() {
                         "group rounded-xl border p-4 text-left transition-all",
                         "disabled:cursor-not-allowed disabled:opacity-60",
                         isActive
-                          ? "border-primary/50 bg-primary/10 neon-ring"
-                          : "border-border/70 bg-secondary/40 hover:border-primary/30 hover:bg-secondary/60",
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border bg-white hover:border-primary/30 hover:bg-secondary/35",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-white">{project.name}</p>
-                          <p className="mt-0.5 text-[11px] text-slate-500 font-mono">
+                          <p className="text-sm font-medium text-foreground">{project.name}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
                             {project.id}
                           </p>
                         </div>
@@ -139,8 +131,8 @@ export function ProjectCatalog() {
                           className={[
                             "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                             isActive
-                              ? "border-primary/40 text-primary bg-primary/10"
-                              : "border-border text-muted-foreground bg-secondary/80",
+                              ? "border-primary/30 text-primary bg-primary/10"
+                              : "border-border text-muted-foreground bg-secondary/45",
                           ].join(" ")}
                         >
                           {project.serviceNames.length} svc
@@ -150,7 +142,7 @@ export function ProjectCatalog() {
                         {project.serviceNames.map((service) => (
                           <span
                             key={service}
-                            className="rounded-md border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground"
+                            className="rounded-md border border-border bg-secondary/30 px-2 py-0.5 text-[10px] text-muted-foreground"
                           >
                             {service}
                           </span>
@@ -158,7 +150,7 @@ export function ProjectCatalog() {
                       </div>
                       <p className="mt-3 text-[11px] text-muted-foreground group-hover:text-primary transition-colors">
                         {isRunning
-                          ? "Running agents…"
+                          ? "Running agents..."
                           : isActive
                             ? "Last analysis for this project"
                             : "Click to analyze"}

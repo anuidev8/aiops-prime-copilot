@@ -1,10 +1,10 @@
 import { SeverityLevel } from "@/shared/types/aiops";
 
 const COLORS: Record<SeverityLevel, string> = {
-  critical: "hsl(0 84% 62%)",
-  high: "hsl(24 95% 60%)",
-  medium: "hsl(38 95% 58%)",
-  low: "hsl(var(--primary))",
+  critical: "hsl(0 82% 58%)",
+  high: "hsl(19 92% 55%)",
+  medium: "hsl(34 93% 53%)",
+  low: "hsl(160 60% 42%)",
 };
 
 interface Slice {
@@ -18,28 +18,37 @@ interface SeverityDistributionChartProps {
 
 export function SeverityDistributionChart({ slices }: SeverityDistributionChartProps) {
   const total = slices.reduce((sum, slice) => sum + slice.count, 0) || 1;
-  let offset = 0;
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
 
   const segments = slices
     .filter((slice) => slice.count > 0)
-    .map((slice) => {
+    .reduce<
+      {
+        severity: SeverityLevel;
+        count: number;
+        dash: number;
+        offset: number;
+        color: string;
+      }[]
+    >((accumulator, slice) => {
       const fraction = slice.count / total;
       const dash = fraction * circumference;
-      const segment = {
-        ...slice,
-        dash,
-        offset,
-        color: COLORS[slice.severity],
-      };
-      offset += dash;
-      return segment;
-    });
+      const offset = accumulator.reduce((sum, segment) => sum + segment.dash, 0);
+      return [
+        ...accumulator,
+        {
+          ...slice,
+          dash,
+          offset,
+          color: COLORS[slice.severity],
+        },
+      ];
+    }, []);
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative h-48 w-full flex items-center justify-center">
+      <div className="relative flex h-48 w-full items-center justify-center">
         <svg viewBox="0 0 88 88" className="h-36 w-36 -rotate-90">
           <circle
             cx="44"
@@ -64,25 +73,22 @@ export function SeverityDistributionChart({ slices }: SeverityDistributionChartP
             />
           ))}
         </svg>
-        <div className="absolute inset-0 grid place-items-center pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="text-center">
-            <p className="font-display text-2xl font-bold">{total}</p>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            <p className="font-display text-2xl font-semibold text-foreground">{total}</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
               Total
             </p>
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+      <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
         {slices.map((slice) => (
           <div
             key={slice.severity}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground capitalize"
+            className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground"
           >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: COLORS[slice.severity] }}
-            />
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORS[slice.severity] }} />
             {slice.severity} · {slice.count}
           </div>
         ))}

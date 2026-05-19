@@ -4,7 +4,8 @@
 - Owner: Product + Engineering
 - Status: Ready for implementation planning
 - Last updated: 2026-05-18
-- Linked Notion target: https://www.notion.so/AIOps-Prime-Copilot-Spec-Driven-Development-364c2144fd7f81c0bb14c3e5ffb6432f
+- Linked Notion hub: https://www.notion.so/AIOps-Prime-Copilot-Spec-Driven-Development-364c2144fd7f81c0bb14c3e5ffb6432f (metodología SDD: [../metodologia-desarrollo-con-ia.md](../metodologia-desarrollo-con-ia.md))
+- Follow-on specs (dynamic UX): SPEC-010, SPEC-011, SPEC-012 in Notion Spec Registry + Implementation Plan `SPEC-010/011/012`
 
 ## 1) Problem
 Current analysis is scoped by `services[]` + `timeWindowMinutes` and outputs incidents, analyses, PRIME KPIs, and narrative. Leadership needs a higher-level operational view by company and project, while preserving all current behavior.

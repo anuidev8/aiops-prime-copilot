@@ -99,6 +99,35 @@ export type GenerativeUiBlock =
   | {
       type: "PrimeNarrative";
       props: { narrative: string; businessSummary: string };
+    }
+  | {
+      type: "ProjectHealthCards";
+      props: {
+        projectName: string;
+        healthScore: number;
+        kpis: PrimeKpiDto[];
+      };
+    }
+  | {
+      type: "ProjectSeverityDonut";
+      props: { severityMix: SeverityMixSlice[] };
+    }
+  | {
+      type: "ProjectServiceBarChart";
+      props: { kpis: PrimeKpiDto[] };
+    }
+  | {
+      type: "ProjectIncidentTrendChart";
+      props: { points: ProjectIncidentTrendPoint[] };
+    }
+  | {
+      type: "RecommendationCard";
+      props: {
+        title: string;
+        priority: "P0" | "P1" | "P2";
+        riskLevel: "high" | "medium" | "low";
+        content: string;
+      };
     };
 
 export interface AnalyzeLogsResult {

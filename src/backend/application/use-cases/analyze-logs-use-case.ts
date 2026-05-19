@@ -369,28 +369,61 @@ export class AnalyzeLogsUseCase {
     analysisDtos: AnalysisDto[];
     primeReportDto: PrimeReportDto;
   }): AnalyzeLogsResult {
+    const ui: AnalyzeLogsResult["ui"] = [
+      {
+        type: "IncidentTable",
+        props: { incidents: params.incidentDtos },
+      },
+      {
+        type: "PrimeKpiCards",
+        props: { kpis: params.primeReportDto.kpis },
+      },
+      {
+        type: "PrimeNarrative",
+        props: {
+          narrative: params.primeReportDto.narrative,
+          businessSummary: params.primeReportDto.businessSummary,
+        },
+      },
+    ];
+
+    if (params.primeReportDto.projectSummary) {
+      ui.push(
+        {
+          type: "ProjectHealthCards",
+          props: {
+            projectName: params.primeReportDto.projectSummary.projectName,
+            healthScore: params.primeReportDto.projectSummary.healthScore,
+            kpis: params.primeReportDto.projectSummary.kpis,
+          },
+        },
+        {
+          type: "ProjectSeverityDonut",
+          props: {
+            severityMix: params.primeReportDto.projectSummary.severityMix,
+          },
+        },
+        {
+          type: "ProjectServiceBarChart",
+          props: {
+            kpis: params.primeReportDto.projectSummary.kpis,
+          },
+        },
+        {
+          type: "ProjectIncidentTrendChart",
+          props: {
+            points: params.primeReportDto.projectSummary.incidentTrend,
+          },
+        },
+      );
+    }
+
     return {
       query: params.query,
       incidents: params.incidentDtos,
       analyses: params.analysisDtos,
       primeReport: params.primeReportDto,
-      ui: [
-        {
-          type: "IncidentTable",
-          props: { incidents: params.incidentDtos },
-        },
-        {
-          type: "PrimeKpiCards",
-          props: { kpis: params.primeReportDto.kpis },
-        },
-        {
-          type: "PrimeNarrative",
-          props: {
-            narrative: params.primeReportDto.narrative,
-            businessSummary: params.primeReportDto.businessSummary,
-          },
-        },
-      ],
+      ui,
     };
   }
 

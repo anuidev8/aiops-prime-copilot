@@ -1,6 +1,7 @@
 import { Analysis } from "../../domain/aiops-analysis/entities/analysis";
 import { Incident } from "../../domain/observability/entities/incident";
 import { PrimeReport } from "../../domain/prime-reporting/entities/prime-report";
+import { buildGenerativeUiBlocks } from "@/shared/lib/build-generative-ui-blocks";
 import {
   AnalysisDto,
   AnalyzeLogsResult,
@@ -80,29 +81,11 @@ export function toPrimeReportDto(primeReport: PrimeReport): PrimeReportDto {
 export function buildUiBlocks(params: {
   incidentDtos: IncidentDto[];
   primeReportDto?: PrimeReportDto;
+  analysisDtos?: AnalysisDto[];
 }): AnalyzeLogsResult["ui"] {
-  const blocks: AnalyzeLogsResult["ui"] = [
-    {
-      type: "IncidentTable",
-      props: { incidents: params.incidentDtos },
-    },
-  ];
-
-  if (params.primeReportDto) {
-    blocks.push(
-      {
-        type: "PrimeKpiCards",
-        props: { kpis: params.primeReportDto.kpis },
-      },
-      {
-        type: "PrimeNarrative",
-        props: {
-          narrative: params.primeReportDto.narrative,
-          businessSummary: params.primeReportDto.businessSummary,
-        },
-      },
-    );
-  }
-
-  return blocks;
+  return buildGenerativeUiBlocks({
+    incidents: params.incidentDtos,
+    analyses: params.analysisDtos,
+    primeReport: params.primeReportDto,
+  });
 }

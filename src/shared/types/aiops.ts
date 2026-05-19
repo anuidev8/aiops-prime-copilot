@@ -20,6 +20,23 @@ export interface ProjectOwnershipViewModel {
   serviceNames: string[];
 }
 
+export type PortfolioMeritStatus = "green" | "yellow" | "red";
+
+export interface PortfolioProjectHealthViewModel {
+  projectId: string;
+  projectName: string;
+  companyId: string;
+  healthScore: number | null;
+  merit: PortfolioMeritStatus;
+  incidentCount: number;
+  criticalCount: number;
+  mttrMinutes: number | null;
+  autoHandleableRate: number | null;
+  hasData: boolean;
+  updatedAt: string | null;
+  source: "manual" | "copilot" | "system" | null;
+}
+
 export interface AnalyzeLogsPayload {
   prompt?: string;
   companyId?: string;
@@ -109,6 +126,35 @@ export type GenerativeUiBlock =
   | {
       type: "PrimeNarrative";
       props: { narrative: string; businessSummary: string };
+    }
+  | {
+      type: "ProjectHealthCards";
+      props: {
+        projectName: string;
+        healthScore: number;
+        kpis: PrimeKpiViewModel[];
+      };
+    }
+  | {
+      type: "ProjectSeverityDonut";
+      props: { severityMix: SeverityMixSliceViewModel[] };
+    }
+  | {
+      type: "ProjectServiceBarChart";
+      props: { kpis: PrimeKpiViewModel[] };
+    }
+  | {
+      type: "ProjectIncidentTrendChart";
+      props: { points: ProjectIncidentTrendPointViewModel[] };
+    }
+  | {
+      type: "RecommendationCard";
+      props: {
+        title: string;
+        priority: "P0" | "P1" | "P2";
+        riskLevel: "high" | "medium" | "low";
+        content: string;
+      };
     };
 
 export interface AnalyzeLogsResult {

@@ -95,7 +95,7 @@ export class RunAnalystUseCase {
         ok: true,
         data: { analyses: analysisDtos },
         cachePatch,
-        ui: buildUiBlocks({ incidentDtos }),
+        ui: buildUiBlocks({ incidentDtos, analysisDtos }),
         runId,
       };
     } catch (error) {

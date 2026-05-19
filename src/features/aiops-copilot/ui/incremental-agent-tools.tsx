@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useHumanInTheLoop, useRenderTool } from "@copilotkit/react-core/v2";
 import { useCopilotChatSuggestions } from "@copilotkit/react-core";
 import { z } from "zod";
-import { AgentPipelineLive } from "@/features/agent-pipeline/ui/agent-pipeline-live";
-import { PrimeReportViewer } from "@/features/prime-report-viewer/ui/prime-report-viewer";
 import {
   AnalysisWorkflowStage,
   useAIOpsSession,
 } from "@/processes/aiops-analysis-session/model/aiops-session-context";
-import { parseAgentToolResult } from "@/shared/lib/coerce-agent-tool-result";
+import { copilotToolToAgentId } from "@/shared/types/analysis-progress";
+import {
+  normalizeCopilotToolPayload,
+  parseAgentToolResult,
+} from "@/shared/lib/coerce-agent-tool-result";
 import { coerceAnalyzeLogsResult } from "@/shared/lib/analysis-chat";
 import { AnalyzeLogsResult } from "@/shared/types/aiops";
+import { RunReporterAgentData } from "@/shared/types/agent-tool-response";
 import { AIOpsAgentToolId } from "@/shared/types/session-artifact-cache";
 
+function normalizeToolStatus(status: string): string {
+  return status.trim().toLowerCase();
+}
+
 function workflowForTool(toolName: AIOpsAgentToolId, status: string): AnalysisWorkflowStage {
-  if (status === "failed" || status === "error") return "error";
-  if (status !== "complete") {
+  const normalized = normalizeToolStatus(status);
+  if (normalized === "failed" || normalized === "error") return "error";
+  if (normalized !== "complete") {
     if (toolName === "runTelemetryAgent") return "reading_telemetry";
     if (toolName === "runAnalystAgent") return "root_cause_analysis";
     if (toolName === "runReporterAgent") return "reporting";
@@ -32,7 +40,6 @@ interface IncrementalToolCardProps {
   toolName: AIOpsAgentToolId;
   label: string;
   status: string;
-  parameters: unknown;
   result: unknown;
   onApplyResult: (result: AnalyzeLogsResult) => void;
   onApplyIncremental: (toolName: AIOpsAgentToolId, result: unknown) => boolean;
@@ -43,30 +50,137 @@ interface IncrementalToolCardProps {
   ) => void;
 }
 
+function dashboardSyncMessage(toolName: AIOpsAgentToolId): string {
+  if (toolName === "runReporterAgent") {
+    return "Opening the in-dashboard report layer with structured PRIME sections.";
+  }
+  if (toolName === "runAnalystAgent") {
+    return "Root-cause summary is in the dashboard dynamic context slot.";
+  }
+  if (toolName === "runTelemetryAgent") {
+    return "Incident scope is in the dashboard dynamic context slot.";
+  }
+  return "Analysis blocks are in the dashboard dynamic context slot.";
+}
+
+function IncrementalToolStatus({
+  label,
+  status,
+  toolName,
+}: {
+  label: string;
+  status: string;
+  toolName: AIOpsAgentToolId;
+}) {
+  const isTelemetry = toolName === "runTelemetryAgent";
+  const isAnalyst = toolName === "runAnalystAgent";
+
+  const normalized = normalizeToolStatus(status);
+
+  if (normalized === "inprogress" || normalized === "executing") {
+    if (isTelemetry || isAnalyst) {
+      return null;
+    }
+    return (
+      <p className="my-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40 opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        </span>
+        Running {label}…
+      </p>
+    );
+  }
+
+  if (normalized === "complete") {
+    const isReporter = toolName === "runReporterAgent";
+    return (
+      <p className="my-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200/90">
+        {label} complete — {dashboardSyncMessage(toolName)}
+        {isReporter ? (
+          <span className="mt-1 block text-emerald-100/80">
+            Edit sections in the report layer overlay on top of the dashboard.
+          </span>
+        ) : null}
+      </p>
+    );
+  }
+
+  if (normalized === "failed" || normalized === "error") {
+    return (
+      <p className="my-2 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-700">
+        {label} failed. Retry from suggestions or run the specific step again.
+      </p>
+    );
+  }
+
+  return null;
+}
+
 function IncrementalToolCard({
   toolName,
   label,
   status,
-  parameters,
   result,
   onApplyResult,
   onApplyIncremental,
   onWorkflowUpdate,
 }: IncrementalToolCardProps) {
-  const { artifactCache } = useAIOpsSession();
+  const { generateReportCanvas, applyCopilotAgentProgress } = useAIOpsSession();
+  const prevStatusRef = useRef<string | undefined>(undefined);
+  const pipelineAgent = copilotToolToAgentId(toolName);
 
   useEffect(() => {
-    const stage = workflowForTool(toolName, status);
-    const parsed = parseAgentToolResult(result);
+    const normalizedStatus = normalizeToolStatus(status);
+    const prevStatus = prevStatusRef.current
+      ? normalizeToolStatus(prevStatusRef.current)
+      : undefined;
+    prevStatusRef.current = status;
 
-    if (status === "complete") {
+    const enteredComplete =
+      normalizedStatus === "complete" && prevStatus !== "complete";
+    const enteredError =
+      (normalizedStatus === "failed" || normalizedStatus === "error") &&
+      prevStatus !== "failed" &&
+      prevStatus !== "error";
+    const enteredExecuting =
+      (normalizedStatus === "executing" || normalizedStatus === "inprogress") &&
+      prevStatus !== "executing" &&
+      prevStatus !== "inprogress";
+
+    const stage = workflowForTool(toolName, normalizedStatus);
+    const payload = normalizeCopilotToolPayload(result);
+    const parsed = parseAgentToolResult(payload);
+
+    if (enteredComplete) {
+      if (pipelineAgent) {
+        applyCopilotAgentProgress(
+          pipelineAgent,
+          "complete",
+          `${label} completed — dashboard synchronized.`,
+        );
+      }
+
       if (parsed?.ok) {
-        const applied = onApplyIncremental(toolName, result);
+        const applied = onApplyIncremental(toolName, payload);
         if (!applied) {
-          const legacy = coerceAnalyzeLogsResult(result);
+          const legacy = coerceAnalyzeLogsResult(payload);
           if (legacy) onApplyResult(legacy);
         }
         onWorkflowUpdate(stage, "copilot", `${label} completed — session cache updated.`);
+
+        if (toolName === "runReporterAgent") {
+          const reportData = parsed.data as RunReporterAgentData;
+          void generateReportCanvas({ report: reportData.primeReport });
+        } else if (toolName === "analyzeLogs") {
+          const legacy = coerceAnalyzeLogsResult(payload);
+          if (legacy) {
+            void generateReportCanvas({
+              report: legacy.primeReport,
+              query: legacy.query,
+            });
+          }
+        }
         return;
       }
 
@@ -75,21 +189,33 @@ function IncrementalToolCard({
         return;
       }
 
-      const legacy = coerceAnalyzeLogsResult(result);
+      const legacy = coerceAnalyzeLogsResult(payload);
       if (legacy) {
         onApplyResult(legacy);
         onWorkflowUpdate("ready", "copilot", `${label} completed.`);
+        return;
+      }
+
+      const fallbackApplied = onApplyIncremental(toolName, payload);
+      if (fallbackApplied) {
+        onWorkflowUpdate(stage, "copilot", `${label} completed — dashboard synchronized.`);
       }
       return;
     }
 
-    if (status === "failed" || status === "error") {
+    if (enteredError) {
+      if (pipelineAgent) {
+        applyCopilotAgentProgress(pipelineAgent, "error", `${label} failed.`);
+      }
       onWorkflowUpdate("error", "copilot", `${label} failed.`);
       return;
     }
 
-    if (status === "executing" || status === "inProgress") {
+    if (enteredExecuting) {
       onWorkflowUpdate(stage, "copilot", `Copilot dispatched ${label}.`);
+      if (pipelineAgent) {
+        applyCopilotAgentProgress(pipelineAgent, "running", `Copilot dispatched ${label}.`);
+      }
     }
   }, [
     toolName,
@@ -99,132 +225,14 @@ function IncrementalToolCard({
     onApplyResult,
     onApplyIncremental,
     onWorkflowUpdate,
+    generateReportCanvas,
+    applyCopilotAgentProgress,
+    pipelineAgent,
   ]);
 
-  const parsed = parseAgentToolResult(result);
-
-  if (toolName === "runAnalystAgent" && status === "complete" && parsed?.ok) {
-    // Render Root Cause Card matching design
-    return (
-      <div className="mt-4 grid grid-cols-[2fr_1fr] gap-4 w-full max-w-4xl">
-        <div className="glass rounded-2xl p-6 flex flex-col justify-between neon-ring">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-4 h-4 rounded-full bg-rose-500 flex items-center justify-center">
-                 <div className="w-2 h-2 rounded-full bg-rose-900"></div>
-              </div>
-              <span className="text-slate-300 font-medium">Root Cause</span>
-            </div>
-            <h3 className="text-lg text-white font-medium mb-1">Database connection pool exhaustion</h3>
-            <p className="text-sm text-slate-400">High number of timeout errors</p>
-          </div>
-        </div>
-        <div className="glass rounded-2xl p-6 flex flex-col">
-          <span className="text-slate-300 font-medium mb-4">Confidence</span>
-          <div className="flex items-center justify-center flex-1 relative">
-            <svg viewBox="0 0 36 36" className="w-24 h-24">
-              <path strokeDasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3"/>
-              <path strokeDasharray="82, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" className="drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]"/>
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center flex-col">
-               <span className="text-2xl font-semibold text-white">82%</span>
-               <span className="text-xs text-slate-400">High</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="glass rounded-2xl p-6">
-           <span className="text-slate-300 font-medium mb-4 block">Evidence</span>
-           <ul className="space-y-3 text-sm text-slate-400">
-             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div> Timeout errors increased by 320%</li>
-             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div> Connection pool usage at 98%</li>
-             <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div> Slow DB response time</li>
-           </ul>
-        </div>
-        
-        <div className="glass rounded-2xl p-6">
-           <span className="text-slate-300 font-medium mb-4 block">Remediation</span>
-           <ul className="space-y-3 text-sm text-slate-400 mb-6">
-             <li>1. Restart DB connection pool</li>
-             <li>2. Increase max connections</li>
-             <li>3. Add connection monitoring</li>
-           </ul>
-           <button type="button" className="w-full bg-gradient-primary text-primary-foreground px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-medium shadow-[0_6px_20px_-6px_hsl(var(--primary)/0.6)] hover:opacity-95 transition-opacity">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
-              Apply Remediation
-           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (toolName === "runReporterAgent" && status === "complete" && parsed?.ok) {
-    // Render the custom KPI cards directly matching the image
-    const report = artifactCache.primeReport;
-    
-    // We mock the exact data if not present just for visual match of the image request
-    const mttr = report?.kpis?.find(k => k.name === "MTTR")?.value || 42;
-    const auto = report?.kpis?.find(k => k.name === "Auto-handleable incident rate")?.value || 48;
-    const density = report?.kpis?.find(k => k.name === "Incident density")?.value || 3.6;
-
-    return (
-      <div className="mt-4 w-full max-w-4xl space-y-4">
-        <div className="grid grid-cols-4 gap-4">
-          <div className="glass rounded-2xl p-4 flex flex-col justify-between h-32">
-             <span className="text-slate-400 text-sm">MTTR</span>
-             <div>
-                <div className="text-3xl font-semibold text-white mb-2">{mttr}m</div>
-                <div className="text-green-400 text-sm flex items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-                  8m
-                </div>
-             </div>
-          </div>
-          <div className="glass rounded-2xl p-4 flex flex-col justify-between h-32">
-             <span className="text-slate-400 text-sm">Auto-handled</span>
-             <div>
-                <div className="text-3xl font-semibold text-white mb-2">{auto}%</div>
-                <div className="text-green-400 text-sm flex items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                  6%
-                </div>
-             </div>
-          </div>
-          <div className="glass rounded-2xl p-4 flex flex-col justify-between h-32">
-             <span className="text-slate-400 text-sm">Incident Density</span>
-             <div>
-                <div className="text-3xl font-semibold text-white mb-2">{density} <span className="text-lg text-slate-500 font-normal">/hr</span></div>
-                <div className="text-rose-400 text-sm flex items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                  0.8
-                </div>
-             </div>
-          </div>
-          <div className="glass rounded-2xl p-4 flex flex-col justify-between h-32">
-             <span className="text-slate-400 text-sm">Confidence</span>
-             <div>
-                <div className="text-3xl font-semibold text-white mb-2">72%</div>
-                <div className="text-green-400 text-sm flex items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                  6%
-                </div>
-             </div>
-          </div>
-        </div>
-        
-        <button className="w-full glass rounded-2xl p-4 flex items-center justify-between hover:bg-white/5 transition-colors text-slate-300">
-           <div className="flex items-center gap-3">
-             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-             View Executive Summary
-           </div>
-           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-      </div>
-    );
-  }
-
-  return null;
+  return <IncrementalToolStatus label={label} status={status} toolName={toolName} />;
 }
+
 
 export function useIncrementalAgentCopilotTools({
   onApplyResult,
@@ -240,6 +248,15 @@ export function useIncrementalAgentCopilotTools({
   useCopilotChatSuggestions(
     {
       suggestions: [
+        {
+          title: "Analisi oggi",
+          message:
+            "Mostrami il riepilogo dell'analisi di oggi e renderizza la summary card nel chat.",
+        },
+        {
+          title: "Analysis summary",
+          message: "Show me summary of today's analysis and render the analysis summary card.",
+        },
         {
           title: "My projects",
           message: "Which projects do I have and what services belong to each?",
@@ -288,34 +305,33 @@ export function useIncrementalAgentCopilotTools({
     description: "Ask the user to confirm before calling runAnalystAgent.",
     parameters: z.object({ incidentCount: z.number().optional() }),
     render: ({ status, args, respond }) => {
-      const { artifactCache } = useAIOpsSession();
       const count = args.incidentCount ?? artifactCache.incidents.length;
 
       if (status !== "executing") {
         return (
-          <p className="text-sm text-slate-400 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Analyst confirmation {status === "complete" ? "recorded" : "pending"}.
           </p>
         );
       }
 
       return (
-        <div className="mt-4 glass rounded-2xl p-5 text-sm w-full max-w-sm">
-          <p className="font-medium text-white mb-2">Confirm Analysis</p>
-          <p className="text-slate-400 mb-4">
+        <div className="mt-4 rounded-2xl border border-border bg-secondary/20 p-5 text-sm w-full max-w-sm">
+          <p className="font-medium text-foreground mb-2">Confirm Analysis</p>
+          <p className="text-muted-foreground mb-4">
             Run analyst on {count} incident{count === 1 ? "" : "s"} from session cache?
           </p>
           <div className="flex gap-2">
             <button
               type="button"
-              className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-500/30 transition-colors"
+              className="bg-primary/10 text-primary border border-primary/25 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/15 transition-colors"
               onClick={() => respond?.({ confirmed: true })}
             >
               Run Analyst
             </button>
             <button
               type="button"
-              className="bg-transparent text-slate-400 border border-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-800 transition-colors"
+              className="bg-white text-muted-foreground border border-border px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-secondary transition-colors"
               onClick={() => respond?.({ confirmed: false })}
             >
               Cancel
@@ -331,21 +347,20 @@ export function useIncrementalAgentCopilotTools({
     description: "Ask the user to confirm before calling runReporterAgent.",
     parameters: z.object({ allowEmptyReport: z.boolean().optional() }),
     render: ({ status, args, respond }) => {
-      const { artifactCache } = useAIOpsSession();
       const empty = artifactCache.incidents.length === 0;
 
       if (status !== "executing") {
         return (
-          <p className="text-sm text-slate-400 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Reporter confirmation {status === "complete" ? "recorded" : "pending"}.
           </p>
         );
       }
 
       return (
-        <div className="mt-4 glass rounded-2xl p-5 text-sm w-full max-w-sm">
-          <p className="font-medium text-white mb-2">Confirm Report</p>
-          <p className="text-slate-400 mb-4">
+        <div className="mt-4 rounded-2xl border border-border bg-secondary/20 p-5 text-sm w-full max-w-sm">
+          <p className="font-medium text-foreground mb-2">Confirm Report</p>
+          <p className="text-muted-foreground mb-4">
             {empty
               ? "No incidents in cache. Generate an empty executive report?"
               : `Generate PRIME report from ${artifactCache.analyses.length} analyses and ${artifactCache.incidents.length} incidents?`}
@@ -353,14 +368,14 @@ export function useIncrementalAgentCopilotTools({
           <div className="flex gap-2">
             <button
               type="button"
-              className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-500/30 transition-colors"
+              className="bg-primary/10 text-primary border border-primary/25 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/15 transition-colors"
               onClick={() => respond?.({ confirmed: true, allowEmptyReport: empty || args.allowEmptyReport })}
             >
               Generate Report
             </button>
             <button
               type="button"
-              className="bg-transparent text-slate-400 border border-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-800 transition-colors"
+              className="bg-white text-muted-foreground border border-border px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-secondary transition-colors"
               onClick={() => respond?.({ confirmed: false })}
             >
               Cancel

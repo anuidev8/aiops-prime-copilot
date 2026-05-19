@@ -1,0 +1,202 @@
+.page {
+  height: 100%;
+  overflow-y: auto;
+  padding: clamp(1rem, 0.9rem + 1.2vw, 2.3rem);
+  background:
+    radial-gradient(circle at 14% 9%, rgba(37, 99, 235, 0.19), transparent 36%),
+    radial-gradient(circle at 88% 8%, rgba(14, 165, 233, 0.16), transparent 34%),
+    linear-gradient(180deg, #f8fbff 0%, #ecf3ff 54%, #e7efff 100%);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.container {
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 1.35rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.72rem;
+  font-size: 0.77rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+}
+
+.topLink {
+  color: #0f4bc8;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.topLink:hover {
+  text-decoration: underline;
+}
+
+.heading {
+  margin: 0;
+  color: #10224a;
+  font-size: clamp(1.65rem, 1.2rem + 2vw, 2.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.subheading {
+  margin: 0.55rem 0 1.55rem;
+  max-width: 70ch;
+  color: #284988;
+  font-size: 0.99rem;
+}
+
+.slides {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.slide {
+  border-radius: 1.2rem;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px -30px rgba(37, 99, 235, 0.5);
+  padding: clamp(1rem, 0.9rem + 0.85vw, 1.75rem);
+}
+
+.slideGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .slideGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+}
+
+.slideHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.78rem;
+  margin-bottom: 0.85rem;
+}
+
+.slideNumber {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.slideTitle {
+  margin: 0;
+  color: #122a5b;
+  font-size: clamp(1.18rem, 1.05rem + 0.75vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.points {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.55rem;
+  color: #1d3a73;
+  font-size: 0.97rem;
+  line-height: 1.4;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-bottom: 0.9rem;
+}
+
+.table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 0.85rem;
+  overflow: hidden;
+}
+
+.table thead tr {
+  background: #e7f0ff;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.9rem;
+  color: #1a366c;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.decision,
+.closing {
+  margin-top: 0.85rem;
+  padding: 0.78rem 0.9rem;
+  border-radius: 0.85rem;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  color: #18356a;
+  font-size: 0.93rem;
+  line-height: 1.4;
+}
+
+.speakerNote {
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px dashed rgba(37, 99, 235, 0.28);
+  color: #36548d;
+  font-size: 0.88rem;
+}
+
+.speakerNote strong {
+  color: #1a377b;
+}
+
+.artPanel {
+  border-radius: 1rem;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: linear-gradient(160deg, #f0f6ff, #e2eeff);
+  padding: 0.7rem;
+  display: grid;
+  place-items: center;
+  min-height: 255px;
+}
+
+.artPanel svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}

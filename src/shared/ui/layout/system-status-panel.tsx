@@ -30,12 +30,12 @@ export function SystemStatusPanel() {
     {
       label: "ADK",
       ready: status?.adk.ready ?? false,
-      detail: status?.adk.backend ?? "—",
+      detail: status?.adk.backend ?? "Unavailable",
     },
     {
       label: "Vertex AI",
       ready: status?.adk.vertexEnabled ?? false,
-      detail: status?.adk.project ?? "—",
+      detail: status?.adk.project ?? "Unavailable",
     },
     {
       label: "Model",
@@ -45,28 +45,30 @@ export function SystemStatusPanel() {
   ];
 
   return (
-    <div className="glass rounded-2xl p-3 text-xs space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        System status
+    <div className="rounded-2xl border border-border bg-card/90 p-3 text-xs shadow-[0_12px_32px_-24px_hsl(225_30%_30%/0.5)]">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        System Status
       </p>
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-medium text-foreground">{row.label}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{row.detail}</p>
+      <div className="space-y-2.5">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-foreground">{row.label}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{row.detail}</p>
+            </div>
+            <span
+              className={[
+                "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                row.ready
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-100 text-slate-500",
+              ].join(" ")}
+            >
+              {row.ready ? "Connected" : "Pending"}
+            </span>
           </div>
-          <span
-            className={[
-              "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-              row.ready
-                ? "bg-success/15 text-success border border-success/30"
-                : "bg-secondary/60 text-muted-foreground border border-border/40",
-            ].join(" ")}
-          >
-            {row.ready ? "Connected" : "Pending"}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

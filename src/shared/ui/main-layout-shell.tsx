@@ -12,21 +12,21 @@ const mobileNavIcons = [
 
 export function MainLayoutShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen w-full text-foreground font-sans overflow-hidden relative">
-      <aside className="md:hidden w-[72px] h-full flex flex-col items-center py-6 border-r border-border/40 bg-background/40 backdrop-blur-xl z-10 shrink-0">
-        <div className="relative w-10 h-10 rounded-xl bg-gradient-primary grid place-items-center mb-8 shadow-[0_0_24px_hsl(var(--primary)/0.45)]">
-          <span className="font-display font-bold text-primary-foreground text-sm relative">A</span>
+    <div className="relative flex h-screen w-full overflow-hidden font-sans text-foreground">
+      <aside className="z-10 hidden h-full w-[74px] shrink-0 flex-col items-center border-r border-border/80 bg-white/85 py-6 backdrop-blur-xl md:flex lg:hidden">
+        <div className="mb-8 grid h-10 w-10 place-items-center rounded-xl bg-gradient-primary text-sm font-bold text-primary-foreground shadow-[0_12px_24px_-14px_hsl(var(--primary)/0.8)]">
+          A
         </div>
-        <nav className="flex flex-col gap-2 w-full items-center">
-          {mobileNavIcons.map((icon, i) => (
+        <nav className="flex w-full flex-col items-center gap-2 px-2">
+          {mobileNavIcons.map((icon, index) => (
             <button
-              key={i}
+              key={index}
               type="button"
               className={[
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                i === 0
-                  ? "text-primary bg-secondary/70 neon-ring"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
+                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                index === 0
+                  ? "bg-primary/12 text-primary"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
               ].join(" ")}
             >
               {icon}
@@ -35,11 +35,11 @@ export function MainLayoutShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {children}
 
-        <div className="absolute top-[18%] left-[8%] w-[480px] h-[480px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[18%] right-[8%] w-[560px] h-[560px] bg-indigo-600/5 rounded-full blur-[150px] pointer-events-none" />
+        <div className="pointer-events-none absolute -top-40 left-16 h-[420px] w-[420px] rounded-full bg-[hsl(var(--primary)/0.08)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 right-10 h-[420px] w-[420px] rounded-full bg-[hsl(var(--primary-glow)/0.1)] blur-3xl" />
       </div>
     </div>
   );

@@ -185,3 +185,38 @@ export function markAgentCompletedInPipeline(
       : step,
   );
 }
+
+export function markAgentStartedInPipeline(
+  pipeline: AnalysisAgentStep[],
+  agent: AnalysisAgentId,
+  detail: string,
+  timestamp: string,
+): AnalysisAgentStep[] {
+  return pipeline.map((step) => {
+    if (step.id === agent) {
+      return {
+        ...step,
+        status: "running",
+        detail,
+        startedAt: timestamp,
+        completedAt: undefined,
+      };
+    }
+
+    if (step.status === "running") {
+      return { ...step, status: "pending" as const };
+    }
+
+    return step;
+  });
+}
+
+export function copilotToolToAgentId(
+  toolName: string,
+): AnalysisAgentId | null {
+  if (toolName === "runTelemetryAgent") return "telemetry";
+  if (toolName === "runAnalystAgent") return "analyst";
+  if (toolName === "runReporterAgent") return "reporter";
+  if (toolName === "analyzeLogs") return "scope";
+  return null;
+}

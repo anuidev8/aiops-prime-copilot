@@ -8,6 +8,7 @@ import {
   SessionPreconditionCode,
   SessionPreconditionSuggestion,
 } from "@/shared/types/session-artifact-cache";
+import type { WorkspaceTelemetryMetrics } from "@/shared/types/workspace-telemetry-metrics";
 
 export interface AgentToolError {
   code: SessionPreconditionCode | "TOOL_EXECUTION_FAILED";
@@ -20,6 +21,7 @@ export interface AgentToolCachePatch {
   incidents?: IncidentViewModel[];
   analyses?: AnalysisViewModel[];
   primeReport?: PrimeReportViewModel | null;
+  workspaceMetrics?: WorkspaceTelemetryMetrics | null;
 }
 
 export type AgentToolSuccess<TData> = {
@@ -41,6 +43,7 @@ export type AgentToolResult<TData> = AgentToolSuccess<TData> | AgentToolFailure;
 export interface RunTelemetryAgentData {
   query: AnalyzeLogsResult["query"];
   incidents: IncidentViewModel[];
+  workspaceMetrics: WorkspaceTelemetryMetrics;
 }
 
 export interface RunAnalystAgentData {

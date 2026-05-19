@@ -10,6 +10,7 @@ import {
 } from "../shared/analysis-scope";
 import { resolveHierarchicalScope } from "../shared/hierarchical-scope-resolver";
 import { buildUiBlocks, toIncidentDto } from "../shared/analysis-mappers";
+import { buildWorkspaceTelemetryMetrics } from "@/shared/lib/build-workspace-telemetry-metrics";
 import { inMemoryArtifactStore } from "../../infrastructure/session/in-memory-artifact-store";
 import {
   AgentToolCachePatch,
@@ -52,6 +53,14 @@ export class RunTelemetryUseCase {
       });
       const incidentDtos = incidents.map((incident) => toIncidentDto(incident));
       const runId = randomUUID();
+      const resolvedServiceCount =
+        query.resolvedServiceCount ?? analyzedServices.length;
+
+      const workspaceMetrics = buildWorkspaceTelemetryMetrics({
+        incidents: incidentDtos,
+        query,
+        resolvedServiceCount,
+      });
 
       inMemoryArtifactStore.saveTelemetry(runId, query, incidents);
 
@@ -60,11 +69,12 @@ export class RunTelemetryUseCase {
         incidents: incidentDtos,
         analyses: [],
         primeReport: null,
+        workspaceMetrics,
       };
 
       return {
         ok: true,
-        data: { query, incidents: incidentDtos },
+        data: { query, incidents: incidentDtos, workspaceMetrics },
         cachePatch,
         ui: buildUiBlocks({ incidentDtos }),
         runId,

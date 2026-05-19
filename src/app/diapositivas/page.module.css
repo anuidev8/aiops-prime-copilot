@@ -1,0 +1,182 @@
+.page {
+  height: 100%;
+  overflow-y: auto;
+  padding: clamp(1.25rem, 1rem + 1vw, 2.5rem);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(59, 130, 246, 0.2), transparent 38%),
+    radial-gradient(circle at 92% 5%, rgba(96, 165, 250, 0.16), transparent 36%),
+    linear-gradient(180deg, #f7fbff 0%, #ecf4ff 48%, #e5f0ff 100%);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.container {
+  margin: 0 auto;
+  max-width: 1140px;
+}
+
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.topLink {
+  color: #0f4ac8;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.topLink:hover {
+  text-decoration: underline;
+}
+
+.heading {
+  margin: 0;
+  color: #0f1f48;
+  font-size: clamp(1.7rem, 1.2rem + 2vw, 2.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.subheading {
+  margin: 0.55rem 0 1.8rem;
+  max-width: 68ch;
+  color: #244381;
+  font-size: 1rem;
+}
+
+.slides {
+  display: grid;
+  gap: 1rem;
+}
+
+.slide {
+  min-height: clamp(420px, 68vh, 610px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 16px 36px -30px rgba(37, 99, 235, 0.55);
+  padding: clamp(1.2rem, 1rem + 1vw, 2rem);
+}
+
+.slideHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.slideNumber {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.slideTitle {
+  margin: 0;
+  font-size: clamp(1.2rem, 1.05rem + 0.8vw, 1.75rem);
+  line-height: 1.2;
+  color: #132958;
+}
+
+.points {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+  color: #1e3a72;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-bottom: 0.9rem;
+}
+
+.table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+
+.table thead tr {
+  background: #e8f1ff;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.8rem 0.9rem;
+  font-size: 0.92rem;
+  color: #1a366b;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.16);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.decision,
+.closing {
+  margin-top: 0.95rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  color: #18356b;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.speakerNote {
+  margin-top: auto;
+  padding-top: 1rem;
+  font-size: 0.9rem;
+  color: #35548f;
+  border-top: 1px dashed rgba(37, 99, 235, 0.3);
+}
+
+.speakerNote strong {
+  color: #17367c;
+}
+
+@media (max-width: 780px) {
+  .slide {
+    min-height: auto;
+  }
+
+  .table {
+    min-width: 500px;
+  }
+}

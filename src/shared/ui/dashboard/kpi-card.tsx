@@ -23,25 +23,26 @@ export function KpiCard({
   return (
     <article
       className={[
-        "glass rounded-2xl p-4 relative overflow-hidden",
-        accent ? "neon-ring" : "",
+        "relative overflow-hidden rounded-2xl border bg-white p-4",
+        accent ? "border-primary/30 shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.55)]" : "border-border",
       ].join(" ")}
     >
       {accent ? (
-        <div className="absolute -inset-px rounded-2xl pointer-events-none opacity-40 bg-[linear-gradient(120deg,transparent_30%,hsl(var(--primary)/0.15)_50%,transparent_70%)] bg-[length:200%_100%] animate-shimmer" aria-hidden />
+        <div
+          className="pointer-events-none absolute -inset-px rounded-2xl bg-[linear-gradient(120deg,transparent_30%,hsl(var(--primary)/0.1)_50%,transparent_70%)] bg-[length:200%_100%] opacity-60 animate-shimmer"
+          aria-hidden
+        />
       ) : null}
       <div className="relative">
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {label}
         </p>
         <div className="mt-2 flex items-end justify-between gap-2">
-          <p className="font-display text-3xl font-bold tracking-tight text-foreground">
-            {value}
-          </p>
+          <p className="font-display text-3xl font-semibold tracking-tight text-foreground">{value}</p>
           {trend !== undefined ? (
             <div
               className={[
-                "flex items-center gap-0.5 text-xs font-medium shrink-0",
+                "flex shrink-0 items-center gap-0.5 text-xs font-semibold",
                 up ? "text-warning" : down ? "text-success" : "text-muted-foreground",
               ].join(" ")}
             >
@@ -54,7 +55,7 @@ export function KpiCard({
             </div>
           ) : null}
         </div>
-        <Sparkline points={sparkline} className="mt-3 h-8 w-full opacity-80" />
+        <Sparkline points={sparkline} className="mt-3 h-8 w-full opacity-75" />
       </div>
     </article>
   );

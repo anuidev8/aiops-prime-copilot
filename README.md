@@ -1,276 +1,115 @@
 # AIOps Prime Copilot
 
-Multi-agent AIOps workspace for incident detection, root-cause analysis, and executive PRIME reporting—with optional **company → project → services** scope for leadership KPIs and recommendations.
+Plataforma **multiagente** para operaciones en la nube: detecta incidentes desde telemetría, analiza causa raíz, genera reportes ejecutivos **PRIME** y expone todo en un workspace con **copilot conversacional** — con alcance **empresa → proyecto → servicios**.
 
-**Stack:** Next.js 16 (App Router) · Google ADK (TypeScript) + Gemini/Vertex · CopilotKit · DDD/Clean Architecture (backend) · Feature-Sliced Design (frontend)
-
----
-
-## Table of contents
-
-1. [Pages and UI](#pages-and-ui)
-2. [End-to-end business flow](#end-to-end-business-flow)
-3. [Scope and ownership model](#scope-and-ownership-model)
-4. [Agent pipeline (business logic)](#agent-pipeline-business-logic)
-5. [KPIs, health score, and recommendations](#kpis-health-score-and-recommendations)
-6. [API reference](#api-reference)
-7. [Copilot and session state](#copilot-and-session-state)
-8. [Architecture map](#architecture-map)
-9. [Seeded demo data](#seeded-demo-data)
-10. [Run and validate](#run-and-validate)
-
----
-
-## Pages and UI
-
-### Routes
-
-| Route | File | Behavior |
-|-------|------|----------|
-| `/` | `src/app/page.tsx` | Redirects to `/aiops` |
-| `/aiops` | `src/app/aiops/page.tsx` → `src/fsd/pages/aiops/ui/aiops-page.tsx` | Main product surface |
-
-There is a single product page. All workspace navigation happens **inside** `/aiops` via sidebar state (not separate URLs).
-
-### Workspace layout
-
-`AIOpsPage` wraps:
-
-1. **`AIOpsSessionProvider`** — global analysis state, project catalog, artifact cache, workflow stage, agent pipeline progress.
-2. **`AIOpsWorkspaceLayout`** — shell: sidebar, top bar, view modes, center content, docked/full copilot.
-
-**View modes** (`ViewModeToggle`):
-
-- **Dashboard** — center panels only
-- **Split** — dashboard + docked copilot (default on large screens)
-- **Chat** — full-width copilot assistant
-- **Avatar** — split with avatar-focused copilot panel
-
-**Sidebar sections** (`AppNavId` → center content):
-
-| Nav ID | Component | What it shows |
-|--------|-----------|----------------|
-| `overview` | `OperationsOverviewDashboard` | KPI cards, severity chart, service impact, health radar, operational map, active incidents |
-| `incidents` | `IncidentDashboard` | Incident table, per-service breakdown, analysis summaries |
-| `prime` | `PrimeReportViewer` | PRIME KPIs, narrative, project/company analytics charts, recommendations |
-| `projects` | `ProjectCatalog` | Companies/projects catalog; run scoped analysis per project |
-| `services`, `recommendations`, `settings` | (sidebar labels) | Reserved for future sections; not wired to distinct views yet |
-
-**Always visible:**
-
-- **`AgentPipelineLive`** — live status for scope → telemetry → analyst → reporter
-- **`CopilotAssistantPanel`** — CopilotKit chat (docked or full) with incremental agent tools
-- **`VoiceCommandBar`** — overview-only voice UX placeholder (large screens)
-
-### How the UI gets data
-
-1. **Manual analysis** — user picks a project in **Projects** or triggers analysis from copilot; session calls `POST /api/aiops/analyze/stream` (NDJSON progress) or falls back to non-streaming analyze.
-2. **Copilot analysis** — ADK tools (`runTelemetryAgent`, `runAnalystAgent`, `runReporterAgent`, `analyzeLogs`) update the same session **artifact cache** incrementally.
-3. **Dashboards read session** — `useAIOpsSession()` exposes `result`, `artifactCache`, `selectedScope`, `workflow`, `agentPipeline`. Components prefer `result` and fall back to `artifactCache` so partial copilot runs still render.
-
----
-
-## End-to-end business flow
-
-High-level path from user intent to UI:
+| | |
+|---|---|
+| **Problema** | Equipos con logs y métricas en GCP (u otras nubes) tardan en pasar de “hay ruido en telemetría” a “qué falló, por qué importa y qué decir al negocio”, y suelen depender de pipelines monolíticos o de un solo LLM con demasiado contexto. |
+| **Solución** | Pipeline especializado en tres roles (telemetría → analista → reporter), orquestado por **Google ADK**, con la misma lógica vía **API REST** o **chat CopilotKit**, estado compartido por `runId` y dashboard que se actualiza en vivo (métricas, coste estimado, salud por proyecto). |
+| **Stack** | **Next.js 16** · **React 19** · **Google ADK** + **Gemini / Vertex AI** · **CopilotKit** (AG-UI) · **TypeScript** · **DDD** (backend) · **FSD** (frontend) · **Tailwind 4** · **Framer Motion** · **Vitest** · **Playwright** |
 
 ```mermaid
 flowchart LR
-  A[User / Copilot request] --> B[Resolve scope]
-  B --> C[Telemetry: detect incidents]
-  C --> D[Analyst: root cause per incident]
-  D --> E[Reporter: PRIME report + project/company KPIs]
-  E --> F[Session + dashboards]
+  U[Usuario / Copilot] --> S[Alcance empresa → proyecto]
+  S --> T[Telemetría]
+  T --> A[Analista RCA]
+  A --> R[Reporter PRIME]
+  R --> D[Dashboard + chat + PDF]
 ```
 
-### 1. Request intake
+---
 
-Payload (`AnalyzeLogsPayload`):
+## Qué resuelve en la práctica
 
-```ts
-{
-  prompt?: string;
-  companyId?: string;
-  projectId?: string;
-  services?: string[];
-  timeWindowMinutes?: number;
-}
+1. **Telemetría** — incidentes y señales desde logs del alcance elegido (lógica determinística + workers ADK).
+2. **Análisis** — causa raíz y remediación por incidente (LLM acotado por rol).
+3. **Reporting PRIME** — KPIs, narrativa ejecutiva y analytics por empresa/proyecto.
+4. **Copilot** — flujo completo o paso a paso, con confirmaciones humanas (HITL) cuando aplica.
+5. **Workspace unificado** — overview operativo, incidentes, catálogo de proyectos, UI generativa y **report canvas** exportable a PDF.
+
+Detalle de pipeline, scope y caché: **[docs/logic/README.md](./docs/logic/README.md)** · KPIs y health score: **[docs/logic/project-company-analytics-spec.md](./docs/logic/project-company-analytics-spec.md)**
+
+---
+
+## Stack y piezas clave
+
+| Área | Tecnología | Rol |
+|------|------------|-----|
+| **Frontend** | Next.js 16, React 19, Tailwind 4, Framer Motion | App Router, workspace `/aiops`, animaciones y skeletons en dashboard |
+| **Chat / UI agente** | CopilotKit (`@copilotkit/react-core`, runtime) | Chat, tools frontend/backend, protocolo **AG-UI**, sincronización con sesión |
+| **Orquestación IA** | Google ADK (`@google/adk`) | `aiops_coordinator` + workers: telemetría, analista, reporter |
+| **Modelos** | Gemini / Vertex AI (`GOOGLE_API_KEY` o ADC) | Coordinador y workers; fallback legacy sin ADK vía `COPILOTKIT_MODEL` |
+| **Backend** | TypeScript, capas DDD | `domain` → `application` (use cases) → `infrastructure` → `interface` (API) |
+| **Estado** | `artifactCache` (cliente) + store por `runId` (servidor) | Mismos artefactos para API, stream y Copilot |
+| **Calidad** | Vitest, Playwright, ESLint | Unitarios, E2E (`/aiops`), build CI |
+
+Arquitectura ampliada: **[docs/platform/README.md](./docs/platform/README.md)** · Diagramas: **[docs/platform/diagramas/](./docs/platform/diagramas/)** · Decisiones: **[docs/platform/decisiones-arquitectura-agentes.md](./docs/platform/decisiones-arquitectura-agentes.md)**
+
+---
+
+## Inicio rápido
+
+```bash
+npm install
+cp .env.example .env.local   # GOOGLE_API_KEY o Vertex; ver tabla abajo
+npm run dev                  # → http://localhost:3000/aiops
 ```
 
-- Validated by `analyzeLogsRequestSchema` (`src/backend/interface/http/analyze-request-schema.ts`).
-- `prompt` is used by Copilot/orchestration; the core use case keys off scope + time window.
+| Comando | Uso |
+|---------|-----|
+| `npm run test` | Tests unitarios (Vitest) |
+| `npm run test:e2e` | E2E Playwright |
+| `npm run lint && npm run build` | Calidad + build producción |
 
-### 2. Scope resolution
+### Variables de entorno (principales)
 
-`AnalyzeLogsUseCase` → `resolveHierarchicalScope()` (`src/backend/application/shared/hierarchical-scope-resolver.ts`):
+| Variable | Uso |
+|----------|-----|
+| `GOOGLE_GENAI_USE_VERTEXAI` | Vertex vs API key |
+| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Proyecto Vertex |
+| `GOOGLE_API_KEY` | Gemini (si no usas ADC) |
+| `ADK_MODEL` / `GEMINI_MODEL` | Modelo coordinador y workers ADK |
+| `COPILOTKIT_MODEL` | Fallback sin ADK |
+| `NEXT_PUBLIC_COPILOT_RUNTIME_URL` | Runtime Copilot (default `/api/copilotkit`) |
 
-- Loads ownership from `InMemoryProjectOwnershipRepository` when `companyId` and/or `projectId` are present.
-- Produces **service list** + resolved company/project metadata for the response `query` block.
-
-See [Scope and ownership model](#scope-and-ownership-model).
-
-### 3. Telemetry (incident detection)
-
-`TelemetryAgent.detectIncidents()`:
-
-- Filters logs by resolved services (if scope is explicit) and optional `TimeWindow`.
-- **Log pipeline:** sort → normalize severity → noise filter (`log-processing-chain.ts`).
-- **Grouping:** by service, region, and error code (`GroupByServiceRegionAndErrorCodeStrategy`).
-- **Output:** `Incident[]` with severity, duration, fingerprint, status, log count.
-
-If `timeWindowMinutes` is omitted, the use case later derives the window from incident `startedAt` / `endedAt`, or defaults to **last 60 minutes** when there are no incidents.
-
-### 4. Analyst (root cause + remediation)
-
-For each incident (when count > 0):
-
-- `AIOpsAnalystAgent.analyzeIncidents()` produces `Analysis`:
-  - **Summary** — human-readable incident synopsis
-  - **RootCause** — hypothesis, evidence[], confidence (0–1)
-  - **RemediationPlan** — steps, automation flag, estimated minutes
-
-Progress events (`incident_analyzed`) stream partial snapshots to the UI during streaming analyze.
-
-### 5. Reporter (PRIME + hierarchical summaries)
-
-`PrimeReporterAgent.buildPrimeReport()`:
-
-- **Service-level KPIs** — `KpiCalculator` (MTTR, auto-handleable rate, incident density, root-cause confidence)
-- **Narrative** — `PrimeNarrativeBuilder` (+ optional Gemini enrichment when configured)
-- **Project-level** (when scope resolves to a project):
-  - `ProjectKpiAggregator` — health score + project KPIs
-  - `project-scope-insights` — severity mix, incident trend
-  - `RecommendationBuilder` — P0/P1/P2 actions
-- **Company-level** (when company scope without single project):
-  - `CompanyKpiAggregator` — rolled-up company KPIs and top risks
-
-### 6. Response assembly
-
-`AnalyzeLogsResult` includes:
-
-- `query` — requested vs resolved scope and time window
-- `incidents`, `analyses`, `primeReport`
-- `ui` — generative blocks: `IncidentTable`, `PrimeKpiCards`, `PrimeNarrative`
+Estado del runtime: `GET /api/aiops/runtime-status`
 
 ---
 
-## Scope and ownership model
+## Para evaluadores (reto técnico)
 
-### Entities
+| Entregable | Documento |
+|------------|-----------|
+| Índice completo | [docs/ENTREGABLES.md](./docs/ENTREGABLES.md) |
+| Diagramas (ADK + CopilotKit) | [docs/platform/diagramas/](./docs/platform/diagramas/) |
+| Decisiones | [docs/platform/decisiones-arquitectura-agentes.md](./docs/platform/decisiones-arquitectura-agentes.md) |
+| Demo en vivo | [docs/DEMO-SUSTENTACION.md](./docs/DEMO-SUSTENTACION.md) |
+| Uso de IA / SDD | [docs/metodologia-desarrollo-con-ia.md](./docs/metodologia-desarrollo-con-ia.md) |
 
-- **Company** — `id`, `name` (domain); catalog uses `companyId` keys
-- **Project** — `id`, `companyId`, `name`, `serviceNames[]`
-
-Port: `ProjectOwnershipRepository`  
-Implementation: `InMemoryProjectOwnershipRepository` (seeded list; see [Seeded demo data](#seeded-demo-data)).
-
-### Resolution rules
-
-| Request | Resolved services | Resolved metadata |
-|---------|-------------------|-------------------|
-| `projectId` only | All services owned by that project | `resolvedProjectId`, `resolvedProjectName`, `resolvedCompanyId` |
-| `projectId` + `services[]` | **Intersection** with project-owned services | Same as above |
-| `companyId` only (no project) | **Union** of all services across company projects | `resolvedCompanyId`; project fields null |
-| `companyId` + `services[]` | Intersection with company union | Company resolved |
-| No company/project | Legacy behavior: optional `services[]` only; if empty, telemetry scans **all** available services | Hierarchy fields null |
-
-Service names are normalized to lowercase trimmed strings everywhere in resolution.
-
-### Ownership API
-
-`GET /api/aiops/ownership/projects?companyId=&projectId=`
-
-Returns `{ projects: [{ id, companyId, name, serviceNames[] }] }`.
-
-Used on session mount and by Copilot tool `listProjectOwnership` to populate the project catalog and auto-fill services when a project is selected.
+Guion de demo: **[docs/DEMO-SUSTENTACION.md](./docs/DEMO-SUSTENTACION.md)** — ejemplo en chat: *“Run telemetry for Project Gem (projectId: project-gem, companyId: acme-corp)”*.
 
 ---
 
-## Agent pipeline (business logic)
+## Interfaz (`/aiops`)
 
-Orchestrated by `AnalyzeLogsUseCase.executeWithProgress()`:
+Una ruta; navegación por sidebar y modos **Dashboard · Split · Chat · Avatar**. Incluye overview con métricas y coste ligados a telemetría, tablas por proyecto/servicio, copilot y report canvas (PDF).
 
-| Step | Agent ID | Responsibility |
-|------|----------|----------------|
-| 1 | `scope` | Resolve company/project/services and describe locked scope |
-| 2 | `telemetry` | Detect incidents from observability logs |
-| 3 | `analyst` | Per-incident root cause and remediation (skipped if zero incidents) |
-| 4 | `reporter` | PRIME KPIs, narrative, optional project/company summaries |
-
-**Incremental Copilot path** (same business rules, split use cases):
-
-| Tool | Use case | Produces |
-|------|----------|----------|
-| `listProjectOwnership` | ownership handler | Project catalog |
-| `runTelemetryAgent` | `RunTelemetryUseCase` | Incidents + `query` |
-| `runAnalystAgent` | `RunAnalystUseCase` | Analyses (needs incidents in cache or args) |
-| `runReporterAgent` | `RunReporterUseCase` | PRIME report from cache |
-| `analyzeLogs` | Full `AnalyzeLogsUseCase` | Complete result |
-
-Copilot runtime: `POST /api/copilotkit` wires ADK-backed tools and a built-in orchestration agent (`COPILOTKIT_MODEL`).
+Mapa UI y generativa: **[docs/ui/README.md](./docs/ui/README.md)** · CopilotKit cliente: **[docs/frontend/copilotkit.md](./docs/frontend/copilotkit.md)**
 
 ---
 
-## KPIs, health score, and recommendations
+## APIs (referencia rápida)
 
-### Service-level PRIME KPIs (`KpiCalculator`)
+| Método | Ruta | Uso |
+|--------|------|-----|
+| `POST` | `/api/aiops/analyze` | Pipeline completo (JSON) |
+| `POST` | `/api/aiops/analyze/stream` | Pipeline + progreso NDJSON |
+| `GET` | `/api/aiops/ownership/projects` | Catálogo empresa / proyecto / servicios |
+| `POST` | `/api/copilotkit` | Runtime CopilotKit + agentes ADK |
+| `POST` | `/api/aiops/report-pdf` | Export PDF del report canvas |
+| `GET` | `/api/aiops/runtime-status` | Config Gemini/Vertex |
 
-| KPI | Meaning |
-|-----|---------|
-| **MTTR** | Mean time to resolve (minutes) across incidents |
-| **Auto-handleable incident rate** | % of incidents flagged as automation candidates |
-| **Incident density** | Incidents per hour in the resolved time window |
-| **Root-cause confidence** | Average analyst confidence × 100 |
-
-Trend arrows (`up` / `down` / `flat`) are rule-based thresholds in the calculator.
-
-### Project-level KPIs (`ProjectKpiAggregator`)
-
-Includes volume, **Critical Incident Rate**, **Service Stability Coverage** (% services with zero critical incidents), **Recurrent Incident Ratio** (repeated fingerprints), and **Project Health Score (0–100)**.
-
-**Health score weights** (constants in code for auditability):
-
-| Factor | Weight |
-|--------|--------|
-| MTTR (normalized inverse) | 30% |
-| Critical incident rate | 25% |
-| Auto-handleable rate | 20% |
-| Root-cause confidence | 15% |
-| Recurrent incident ratio | 10% |
-
-Normalization caps: e.g. MTTR worst case 60 min, critical rate worst 40%, recurrent ratio worst 35% (`PROJECT_HEALTH_NORMALIZATION`).
-
-### Recommendations (`RecommendationBuilder`)
-
-Derived from health score, critical rate, recurrent ratio, stability coverage:
-
-| Condition | Priority | Risk |
-|-----------|----------|------|
-| Health &lt; 50 or critical rate &gt; 25% | P0 | high |
-| Health &lt; 75 or recurrent &gt; 15% | P1 | medium |
-| Otherwise | P2 | low |
-
-Each recommendation includes **evidence** (metric strings), **immediate** (24h), **shortTerm** (7d), **strategic** (30d) actions, and a **confidence** score.
-
-### Company-level (`CompanyKpiAggregator`)
-
-Rolls up project-style metrics when `companyId` scope applies without a single project; exposes `companySummary` on `PrimeReport` with `topRisks` and company recommendation.
-
----
-
-## API reference
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/api/aiops/analyze` | Full pipeline; JSON result |
-| `POST` | `/api/aiops/analyze/stream` | Same pipeline; NDJSON `AnalysisProgressEvent` lines |
-| `POST` | `/api/aiops/prime-report` | Reporter-focused path (business summary use case available) |
-| `GET` | `/api/aiops/ownership/projects` | Project/service ownership catalog |
-| `GET` | `/api/aiops/runtime-status` | Gemini/Vertex configuration status |
-| `GET` | `/api/mock/telemetry` | Mock telemetry feed for demos |
-| `POST` | `/api/copilotkit` | CopilotKit runtime + ADK agent tools |
-
-### Example: analyze Project Gem
+**Ejemplo** — analizar Project Gem:
 
 ```json
 POST /api/aiops/analyze
@@ -281,169 +120,40 @@ POST /api/aiops/analyze
 }
 ```
 
-Resolves to services: `auth-service`, `payments-api`, `worker-sync`, `notifications`.
-
-### Analyze response shape (summary)
-
-```ts
-{
-  query: {
-    requestedCompanyId, requestedProjectId,
-    resolvedCompanyId, resolvedProjectId, resolvedProjectName,
-    resolvedServiceCount, requestedServices, analyzedServices,
-    requestedTimeWindowMinutes, resolvedTimeWindowMinutes,
-    resolvedWindowFrom, resolvedWindowTo
-  },
-  incidents: IncidentViewModel[],
-  analyses: AnalysisViewModel[],
-  primeReport: PrimeReportViewModel,  // includes optional projectSummary / companySummary
-  ui: GenerativeUiBlock[]
-}
-```
+Contratos y capas: **[docs/backend/README.md](./docs/backend/README.md)**
 
 ---
 
-## Copilot and session state
+## Datos demo (seed)
 
-### Session provider (`src/processes/aiops-analysis-session/model/aiops-session-context.tsx`)
+| Empresa | Proyectos |
+|---------|-----------|
+| `acme-corp` (Acme Corp) | `project-gem`, `project-nova` |
+| `stellar-inc` (Stellar Inc) | `project-orbit`, `project-pulse` |
 
-| State | Role |
-|-------|------|
-| `artifactCache` | Normalized incidents, analyses, PRIME report, query — updated incrementally by copilot tools |
-| `projectCatalog` | Loaded once via ownership API |
-| `selectedScope` | User-selected company/project/services |
-| `result` | Latest full analyze result |
-| `workflow` | `idle` → `collecting_scope` → `reading_telemetry` → `root_cause_analysis` → `reporting` → `ready` / `error` |
-| `agentPipeline` | Per-agent running/complete/failed steps |
-| `runAnalysis()` | Calls streaming analyze API and merges progress |
-| `applyIncrementalToolResult()` | Maps copilot tool output into artifact cache |
-
-### UI features tied to copilot
-
-- **`AIOpsCopilot`** + **`IncrementalAgentTools`** — render tool cards, suggestions, HITL where configured
-- **`copilot-analysis-bridge`** — prefix/constants for post-ADK analysis handoff
-- **`coerce-agent-tool-result`** — normalizes `{ ok, data }` tool payloads
-
-Env: `NEXT_PUBLIC_COPILOT_RUNTIME_URL` (default `/api/copilotkit`).
-
----
-
-## Architecture map
-
-### Backend (DDD + Clean)
-
-```
-src/backend/
-├── domain/
-│   ├── common/              # Severity, ServiceName, TimeWindow
-│   ├── observability/       # LogEntry, Incident, grouping, detection
-│   ├── aiops-analysis/      # Analysis, RootCause, RemediationPlan
-│   ├── prime-reporting/     # PrimeKpi, PrimeReport, KpiCalculator, narrative
-│   └── project-analytics/   # Company, Project, aggregators, recommendations
-├── application/
-│   ├── use-cases/           # AnalyzeLogs, RunTelemetry/Analyst/Reporter, GenerateBusinessSummary
-│   ├── contracts/           # Ports, DTOs, progress events
-│   └── shared/              # hierarchical-scope-resolver, mappers
-├── infrastructure/
-│   ├── adk/                 # ADK agents + factories
-│   ├── repositories/        # file logs, in-memory ownership
-│   └── bootstrap.ts         # Wire use cases
-└── interface/http/          # Zod schemas, ownership handlers
-```
-
-### Frontend (FSD-style)
-
-```
-src/
-├── app/                     # Next.js routes + API route handlers
-├── fsd/pages/aiops/         # Page composition
-├── processes/aiops-analysis-session/  # Session orchestration
-├── features/                # aiops-copilot, dashboards, prime-report-viewer, project-scope, …
-├── entities/                # prime + project-analytics UI building blocks
-└── shared/                  # types, API clients, dashboard/layout UI
-```
-
-### Domain contexts (what each owns)
-
-| Context | Responsibility |
-|---------|----------------|
-| **Observability** | Ingest logs, detect/group incidents, severity and fingerprints |
-| **AIOps Analysis** | Root-cause hypotheses and remediation plans per incident |
-| **PRIME Reporting** | Executive KPIs, narrative, business summary |
-| **Project Analytics** | Ownership, project/company aggregation, health score, recommendations |
-
----
-
-## Seeded demo data
-
-### Companies and projects
-
-| Company ID | Display | Projects |
-|------------|---------|----------|
-| `acme-corp` | Acme Corp | **Project Gem** (`project-gem`), **Project Nova** (`project-nova`) |
-| `stellar-inc` | Stellar Inc | **Project Orbit** (`project-orbit`), **Project Pulse** (`project-pulse`) |
-
-### Project → services
-
-| Project | Services |
-|---------|----------|
+| Proyecto | Servicios (ejemplo) |
+|----------|---------------------|
 | Project Gem | `auth-service`, `payments-api`, `worker-sync`, `notifications` |
 | Project Nova | `catalog-api`, `search-api`, `recommendations` |
 | Project Orbit | `billing-api`, `ledger-worker`, `invoice-pdf` |
 | Project Pulse | `metrics-ingest`, `alert-router` |
 
-Telemetry/logs come from `file-logs-repository` / mock telemetry API (`sample-logs.json` and mock routes).
+Logs: `file-logs-repository` · mock: `GET /api/mock/telemetry`
 
 ---
 
-## Run and validate
+## Documentación
 
-### 1. Install
-
-```bash
-npm install
-```
-
-### 2. Environment
-
-```bash
-cp .env.example .env.local
-```
-
-Key variables:
-
-| Variable | Purpose |
-|----------|---------|
-| `GOOGLE_GENAI_USE_VERTEXAI` | Use Vertex vs API key |
-| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Vertex project |
-| `ADK_MODEL` / `GEMINI_MODEL` | Backend ADK agents |
-| `COPILOTKIT_MODEL` | Copilot orchestration model |
-| `NEXT_PUBLIC_COPILOT_RUNTIME_URL` | Browser CopilotKit endpoint |
-
-### 3. Dev server
-
-```bash
-npm run dev
-```
-
-Open: **http://localhost:3000/aiops**
-
-### 4. Quality gates
-
-```bash
-npm run test
-npm run lint
-npm run build
-```
+| Tema | Enlace |
+|------|--------|
+| Índice `docs/` | [docs/README.md](./docs/README.md) |
+| Entregables reto | [docs/ENTREGABLES.md](./docs/ENTREGABLES.md) |
+| Lógica y pipeline | [docs/logic/README.md](./docs/logic/README.md) |
+| Plataforma / ADK | [docs/platform/README.md](./docs/platform/README.md) |
+| Metodología SDD + IA | [docs/metodologia-desarrollo-con-ia.md](./docs/metodologia-desarrollo-con-ia.md) |
 
 ---
 
-## Related documentation
+## Compatibilidad
 
-- **SPEC-009 (company/project analytics):** `docs/project-company-analytics-spec.md` — requirements, KPI definitions, and compatibility rules that this README summarizes.
-
----
-
-## Backward compatibility
-
-Existing clients that only send `services` and/or `timeWindowMinutes` continue to work: hierarchy fields are optional, and when omitted the platform uses the same service-centric telemetry and PRIME pipeline as before. Project/company summaries appear only when scope resolves through ownership metadata.
+Clientes que envían solo `services` y/o `timeWindowMinutes` siguen funcionando. Los campos de jerarquía (`companyId`, `projectId`) son opcionales; resúmenes por proyecto/empresa aparecen cuando el scope se resuelve vía ownership.

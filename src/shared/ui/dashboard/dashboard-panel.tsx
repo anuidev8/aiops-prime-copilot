@@ -13,11 +13,11 @@ export function DashboardPanel({
   children,
 }: DashboardPanelProps) {
   return (
-    <section className={["glass rounded-2xl p-4", className ?? ""].join(" ")}>
+    <section className={["rounded-3xl border border-border bg-white p-4 sm:p-5", className ?? ""].join(" ")}>
       <header className="mb-3">
-        <h3 className="font-display font-semibold text-sm text-foreground">{title}</h3>
+        <h3 className="font-display text-sm font-semibold text-foreground sm:text-base">{title}</h3>
         {subtitle ? (
-          <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground sm:text-xs">{subtitle}</p>
         ) : null}
       </header>
       {children}

@@ -7,29 +7,29 @@ interface IncidentTableProps {
 function severityBadgeClass(severity: IncidentViewModel["severity"]): string {
   switch (severity) {
     case "critical":
-      return "bg-rose-500/20 text-rose-400 border border-rose-500/30";
+      return "bg-rose-50 text-rose-700 border border-rose-200";
     case "high":
-      return "bg-orange-500/20 text-orange-400 border border-orange-500/30";
+      return "bg-orange-50 text-orange-700 border border-orange-200";
     case "medium":
-      return "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+      return "bg-amber-50 text-amber-700 border border-amber-200";
     default:
-      return "bg-slate-500/20 text-slate-400 border border-slate-500/30";
+      return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   }
 }
 
 export function IncidentTable({ incidents }: IncidentTableProps) {
   if (incidents.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-3 text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-border bg-secondary/30 p-3 text-sm text-muted-foreground">
         No incidents detected for the selected scope.
       </p>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-800/60 bg-[#0f172a]/40 backdrop-blur-sm">
+    <div className="overflow-x-auto rounded-xl border border-border bg-white">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-slate-900/60 text-xs uppercase tracking-wide text-slate-500 border-b border-slate-800/60">
+        <thead className="border-b border-border bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="px-3 py-3">Service</th>
             <th className="px-3 py-3">Severity</th>
@@ -40,10 +40,10 @@ export function IncidentTable({ incidents }: IncidentTableProps) {
             <th className="px-3 py-3">Fingerprint</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/60">
+        <tbody className="divide-y divide-border/70">
           {incidents.map((incident) => (
-            <tr key={incident.id} className="hover:bg-slate-800/20 transition-colors">
-              <td className="px-3 py-3 font-medium text-slate-300">{incident.service}</td>
+            <tr key={incident.id} className="transition-colors hover:bg-secondary/35">
+              <td className="px-3 py-3 font-medium text-foreground">{incident.service}</td>
               <td className="px-3 py-3">
                 <span
                   className={[
@@ -54,17 +54,17 @@ export function IncidentTable({ incidents }: IncidentTableProps) {
                   {incident.severity}
                 </span>
               </td>
-              <td className="px-3 py-3 text-xs text-slate-400">
+              <td className="px-3 py-3 text-xs text-muted-foreground">
                 {new Date(incident.startedAt).toLocaleTimeString()}
               </td>
-              <td className="px-3 py-3 text-slate-300">
+              <td className="px-3 py-3 text-foreground">
                 {incident.durationMinutes.toFixed(1)}m
               </td>
-              <td className="px-3 py-3 text-slate-300">{incident.logCount}</td>
-              <td className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+              <td className="px-3 py-3 text-foreground">{incident.logCount}</td>
+              <td className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {incident.status}
               </td>
-              <td className="px-3 py-3 font-mono text-[10px] text-slate-500">
+              <td className="px-3 py-3 font-mono text-[10px] text-muted-foreground">
                 {incident.fingerprint}
               </td>
             </tr>

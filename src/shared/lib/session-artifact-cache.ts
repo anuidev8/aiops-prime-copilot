@@ -5,6 +5,8 @@ import {
   SessionArtifactPatch,
   SessionPreconditionResult,
 } from "@/shared/types/session-artifact-cache";
+import { buildGenerativeUiBlocks } from "@/shared/lib/build-generative-ui-blocks";
+import { buildWorkspaceTelemetryMetrics } from "@/shared/lib/build-workspace-telemetry-metrics";
 import { AnalyzeLogsResult } from "@/shared/types/aiops";
 
 const EMPTY_REPORT: AnalyzeLogsResult["primeReport"] = {
@@ -20,6 +22,7 @@ export function createEmptyArtifactCache(): AIOpsSessionArtifactCache {
     incidents: [],
     analyses: [],
     primeReport: null,
+    workspaceMetrics: null,
     lastRunMeta: null,
   };
 }
@@ -42,6 +45,7 @@ export function buildArtifactCache(
     incidents: result.incidents,
     analyses: result.analyses,
     primeReport: hasPrimeContent ? result.primeReport : null,
+    workspaceMetrics: null,
     lastRunMeta,
   };
 }
@@ -66,7 +70,11 @@ export function artifactCacheToAnalyzeLogsResult(
     incidents: cache.incidents,
     analyses: cache.analyses,
     primeReport: cache.primeReport ?? EMPTY_REPORT,
-    ui: [],
+    ui: buildGenerativeUiBlocks({
+      incidents: cache.incidents,
+      analyses: cache.analyses,
+      primeReport: cache.primeReport,
+    }),
   };
 }
 
@@ -93,11 +101,23 @@ export function mergeArtifactCache(
           ? patch.primeReport
           : current.primeReport;
 
+  let workspaceMetrics = current.workspaceMetrics;
+  if (patch.workspaceMetrics !== undefined) {
+    workspaceMetrics = patch.workspaceMetrics;
+  } else if (patch.incidents !== undefined && query) {
+    workspaceMetrics = buildWorkspaceTelemetryMetrics({
+      incidents,
+      query,
+      resolvedServiceCount: query.resolvedServiceCount ?? incidents.length,
+    });
+  }
+
   return {
     query,
     incidents,
     analyses,
     primeReport,
+    workspaceMetrics,
     lastRunMeta: meta,
   };
 }

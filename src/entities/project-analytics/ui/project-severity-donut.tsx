@@ -1,3 +1,6 @@
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
 import { SeverityMixSliceViewModel } from "@/shared/types/aiops";
 
 const SEVERITY_COLORS: Record<SeverityMixSliceViewModel["severity"], string> = {
@@ -7,11 +10,14 @@ const SEVERITY_COLORS: Record<SeverityMixSliceViewModel["severity"], string> = {
   low: "rgb(52 211 153)",
 };
 
+const easeOut = [0.22, 1, 0.36, 1] as const;
+
 interface ProjectSeverityDonutProps {
   severityMix: SeverityMixSliceViewModel[];
 }
 
 export function ProjectSeverityDonut({ severityMix }: ProjectSeverityDonutProps) {
+  const reducedMotion = Boolean(useReducedMotion());
   const total = severityMix.reduce((sum, slice) => sum + slice.count, 0);
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
@@ -46,8 +52,8 @@ export function ProjectSeverityDonut({ severityMix }: ProjectSeverityDonutProps)
             stroke="rgb(30 41 59)"
             strokeWidth="8"
           />
-          {arcs.map(({ slice, dashOffset, arc }) => (
-            <circle
+          {arcs.map(({ slice, dashOffset, arc }, index) => (
+            <motion.circle
               key={slice.severity}
               cx="42"
               cy="42"
@@ -57,8 +63,11 @@ export function ProjectSeverityDonut({ severityMix }: ProjectSeverityDonutProps)
               strokeWidth="8"
               strokeDasharray={`${arc} ${circumference}`}
               strokeDashoffset={-dashOffset}
-              strokeLinecap="butt"
+              strokeLinecap="round"
               transform="rotate(-90 42 42)"
+              initial={reducedMotion ? false : { pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: reducedMotion ? 0 : 0.55, ease: easeOut, delay: index * 0.05 }}
             />
           ))}
           <text
@@ -71,9 +80,12 @@ export function ProjectSeverityDonut({ severityMix }: ProjectSeverityDonutProps)
           </text>
         </svg>
         <div className="w-full space-y-1.5">
-          {severityMix.map((slice) => (
-            <div
+          {severityMix.map((slice, index) => (
+            <motion.div
               key={slice.severity}
+              initial={reducedMotion ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.3, delay: index * 0.04 }}
               className="flex items-center justify-between text-[11px] text-slate-300"
             >
               <span className="flex items-center gap-2 capitalize">
@@ -86,10 +98,11 @@ export function ProjectSeverityDonut({ severityMix }: ProjectSeverityDonutProps)
               <span className="font-mono text-slate-400">
                 {slice.count} ({slice.percentage}%)
               </span>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
     </div>
   );
 }
+

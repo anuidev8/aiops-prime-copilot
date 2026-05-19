@@ -4,6 +4,7 @@ import {
   IncidentViewModel,
   PrimeReportViewModel,
 } from "@/shared/types/aiops";
+import type { WorkspaceTelemetryMetrics } from "@/shared/types/workspace-telemetry-metrics";
 
 /** CopilotKit / ADK tool ids that write session artifacts (SPEC-007 §4). */
 export type AIOpsAgentToolId =
@@ -29,6 +30,8 @@ export interface AIOpsSessionArtifactCache {
   incidents: IncidentViewModel[];
   analyses: AnalysisViewModel[];
   primeReport: PrimeReportViewModel | null;
+  /** Scoped metrics snapshot from the latest telemetry run (workspace panels). */
+  workspaceMetrics: WorkspaceTelemetryMetrics | null;
   lastRunMeta: LastRunMeta | null;
 }
 
@@ -57,4 +60,5 @@ export interface SessionArtifactPatch {
   incidents?: IncidentViewModel[];
   analyses?: AnalysisViewModel[];
   primeReport?: PrimeReportViewModel | null;
+  workspaceMetrics?: WorkspaceTelemetryMetrics | null;
 }
