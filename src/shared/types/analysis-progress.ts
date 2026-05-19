@@ -61,7 +61,7 @@ export const ANALYSIS_AGENT_DEFINITIONS: Array<{
   {
     id: "scope",
     label: "Scope Orchestrator",
-    subtitle: "Resolves services and time window from telemetry inventory",
+    subtitle: "Resolves company/project/service scope and time window",
   },
   {
     id: "telemetry",

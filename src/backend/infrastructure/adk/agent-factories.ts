@@ -7,6 +7,9 @@ import { RootCauseAnalyzer } from "../../domain/aiops-analysis/services/root-cau
 import { RemediationPlanner } from "../../domain/aiops-analysis/services/remediation-planner";
 import { KpiCalculator } from "../../domain/prime-reporting/services/kpi-calculator";
 import { PrimeNarrativeBuilder } from "../../domain/prime-reporting/services/prime-narrative-builder";
+import { CompanyKpiAggregator } from "../../domain/project-analytics/services/company-kpi-aggregator";
+import { ProjectKpiAggregator } from "../../domain/project-analytics/services/project-kpi-aggregator";
+import { RecommendationBuilder } from "../../domain/project-analytics/services/recommendation-builder";
 
 export class TelemetryAgentFactory {
   static create(): TelemetryAgent {
@@ -29,7 +32,16 @@ export class ReporterAgentFactory {
   static create(): PrimeReporterAgent {
     const kpiCalculator = new KpiCalculator();
     const narrativeBuilder = new PrimeNarrativeBuilder();
+    const projectKpiAggregator = new ProjectKpiAggregator();
+    const companyKpiAggregator = new CompanyKpiAggregator();
+    const recommendationBuilder = new RecommendationBuilder();
 
-    return new AdkPrimeReporterAgent(kpiCalculator, narrativeBuilder);
+    return new AdkPrimeReporterAgent(
+      kpiCalculator,
+      narrativeBuilder,
+      projectKpiAggregator,
+      companyKpiAggregator,
+      recommendationBuilder,
+    );
   }
 }

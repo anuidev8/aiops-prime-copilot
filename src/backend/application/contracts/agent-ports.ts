@@ -26,5 +26,14 @@ export interface PrimeReporterAgent {
     incidents: Incident[];
     analyses: Analysis[];
     timeWindow: TimeWindow;
+    scopeContext?: {
+      requestedCompanyId?: string | null;
+      requestedProjectId?: string | null;
+      resolvedCompanyId?: string | null;
+      resolvedProjectId?: string | null;
+      resolvedProjectName?: string | null;
+      analyzedServices?: string[];
+      resolvedServiceCount?: number;
+    };
   }): Promise<PrimeReport>;
 }

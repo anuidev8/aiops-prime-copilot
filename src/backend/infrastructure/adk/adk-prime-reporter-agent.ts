@@ -4,9 +4,24 @@ import { PrimeReporterAgent } from "../../application/contracts/agent-ports";
 import { Analysis } from "../../domain/aiops-analysis/entities/analysis";
 import { TimeWindow } from "../../domain/common/value-objects/time-window";
 import { Incident } from "../../domain/observability/entities/incident";
-import { PrimeReport } from "../../domain/prime-reporting/entities/prime-report";
+import {
+  CompanyPrimeSummary,
+  PrimeRecommendation,
+  PrimeReport,
+  ProjectPrimeSummary,
+} from "../../domain/prime-reporting/entities/prime-report";
 import { KpiCalculator } from "../../domain/prime-reporting/services/kpi-calculator";
 import { PrimeNarrativeBuilder } from "../../domain/prime-reporting/services/prime-narrative-builder";
+import { CompanyKpiAggregator } from "../../domain/project-analytics/services/company-kpi-aggregator";
+import {
+  ProjectKpiAggregationResult,
+  ProjectKpiAggregator,
+} from "../../domain/project-analytics/services/project-kpi-aggregator";
+import {
+  buildIncidentTrend,
+  buildSeverityMix,
+} from "../../domain/project-analytics/services/project-scope-insights";
+import { RecommendationBuilder } from "../../domain/project-analytics/services/recommendation-builder";
 import { canUseGeminiWithCurrentEnv, getGeminiRuntimeConfig } from "../config/vertex-config";
 import {
   collectFinalResponseText,
@@ -21,16 +36,30 @@ const primeNarrativeSchema = z.object({
 
 type PrimeNarrativeOutput = z.infer<typeof primeNarrativeSchema>;
 
+type ScopeContext = {
+  requestedCompanyId?: string | null;
+  requestedProjectId?: string | null;
+  resolvedCompanyId?: string | null;
+  resolvedProjectId?: string | null;
+  resolvedProjectName?: string | null;
+  analyzedServices?: string[];
+  resolvedServiceCount?: number;
+};
+
 export class AdkPrimeReporterAgent implements PrimeReporterAgent {
   constructor(
     private readonly kpiCalculator: KpiCalculator,
     private readonly narrativeBuilder: PrimeNarrativeBuilder,
+    private readonly projectKpiAggregator: ProjectKpiAggregator,
+    private readonly companyKpiAggregator: CompanyKpiAggregator,
+    private readonly recommendationBuilder: RecommendationBuilder,
   ) {}
 
   async buildPrimeReport(input: {
     incidents: Incident[];
     analyses: Analysis[];
     timeWindow: TimeWindow;
+    scopeContext?: ScopeContext;
   }): Promise<PrimeReport> {
     const kpis = this.kpiCalculator.compute({
       incidents: input.incidents,
@@ -40,24 +69,52 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
 
     const fallbackNarrative = this.narrativeBuilder.buildNarrative(kpis);
     const fallbackBusinessSummary = this.narrativeBuilder.buildBusinessSummary(kpis);
+    const scopedServices = input.scopeContext?.analyzedServices ?? [];
+    const projectKpis = this.projectKpiAggregator.aggregate({
+      incidents: input.incidents,
+      analyses: input.analyses,
+      scopedServiceNames: scopedServices,
+    });
+
+    const recommendation = this.recommendationBuilder.build({
+      healthScore: projectKpis.healthScore,
+      criticalIncidentRate: projectKpis.criticalIncidentRate,
+      recurrentIncidentRatio: projectKpis.recurrentIncidentRatio,
+      serviceStabilityCoverage: projectKpis.serviceStabilityCoverage,
+    });
+
+    const projectSummary = this.resolveProjectSummary(
+      input.scopeContext,
+      projectKpis,
+      recommendation,
+      input.incidents,
+      input.timeWindow,
+    );
+    const companySummary = this.resolveCompanySummary(
+      input.scopeContext,
+      projectKpis,
+      recommendation,
+    );
 
     if (input.incidents.length === 0) {
-      return new PrimeReport(
-        new Date(),
+      return this.composeReport(
         input.timeWindow,
         kpis,
         "No incidents were detected in the selected telemetry scope.",
         "No active incident pressure was observed. Continue monitoring and keep remediation automations ready.",
+        projectSummary,
+        companySummary,
       );
     }
 
     if (!canUseGeminiWithCurrentEnv()) {
-      return new PrimeReport(
-        new Date(),
+      return this.composeReport(
         input.timeWindow,
         kpis,
         fallbackNarrative,
         fallbackBusinessSummary,
+        projectSummary,
+        companySummary,
       );
     }
 
@@ -65,7 +122,7 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
       const primeContextTool = new FunctionTool({
         name: "get_prime_context",
         description:
-          "Provides KPI context and a compact list of top incident analysis findings.",
+          "Provides service-level KPIs, project/company scope analytics, severity mix, and top analysis findings for PRIME narrative generation.",
         parameters: z.object({ requestId: z.string() }),
         execute: async () => ({
           kpis: kpis.map((kpi) => ({
@@ -81,6 +138,28 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
             confidence: analysis.rootCause.confidence,
             remediation: analysis.remediationPlan.summary,
           })),
+          projectScope: projectSummary
+            ? {
+                projectId: projectSummary.projectId,
+                projectName: projectSummary.projectName,
+                healthScore: projectSummary.healthScore,
+                severityMix: projectSummary.severityMix,
+                incidentTrend: projectSummary.incidentTrend,
+                recommendation: {
+                  priority: projectSummary.recommendation.priority,
+                  riskLevel: projectSummary.recommendation.riskLevel,
+                  confidence: projectSummary.recommendation.confidence,
+                  evidence: projectSummary.recommendation.evidence,
+                },
+              }
+            : null,
+          companyScope: companySummary
+            ? {
+                companyId: companySummary.companyId,
+                companyName: companySummary.companyName,
+                topRisks: companySummary.topRisks,
+              }
+            : null,
         }),
       });
 
@@ -88,9 +167,10 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
         name: "prime_reporter_agent",
         model: this.resolveModel(),
         instruction: [
-          "You are a PRIME reporting agent for both operations and business stakeholders.",
-          "Call get_prime_context, then return only valid JSON:",
-          '{"narrative": string, "businessSummary": string}',
+          "You are a PRIME reporting agent for operations and business stakeholders.",
+          "Always call get_prime_context first.",
+          "When projectScope is present, reference project health, severity mix, and recommendation confidence in the narrative.",
+          "Return only valid JSON: {\"narrative\": string, \"businessSummary\": string}",
           "No markdown, no code fences, no extra keys.",
         ].join("\n"),
         tools: [primeContextTool],
@@ -115,7 +195,9 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
           userId,
           sessionId,
           newMessage: userTextMessage(
-            "Generate concise PRIME narrative and business summary from current KPIs.",
+            projectSummary
+              ? `Generate PRIME narrative and business summary for project ${projectSummary.projectName} (health ${projectSummary.healthScore}/100).`
+              : "Generate concise PRIME narrative and business summary from current KPIs.",
           ),
         }),
       );
@@ -123,32 +205,109 @@ export class AdkPrimeReporterAgent implements PrimeReporterAgent {
       const parsed = extractJsonObject<PrimeNarrativeOutput>(responseText);
       const validated = parsed ? primeNarrativeSchema.safeParse(parsed) : null;
 
-      if (!validated || !validated.success) {
-        return new PrimeReport(
-          new Date(),
+      if (!validated?.success) {
+        return this.composeReport(
           input.timeWindow,
           kpis,
           fallbackNarrative,
           fallbackBusinessSummary,
+          projectSummary,
+          companySummary,
         );
       }
 
-      return new PrimeReport(
-        new Date(),
+      return this.composeReport(
         input.timeWindow,
         kpis,
         validated.data.narrative,
         validated.data.businessSummary,
+        projectSummary,
+        companySummary,
       );
     } catch {
-      return new PrimeReport(
-        new Date(),
+      return this.composeReport(
         input.timeWindow,
         kpis,
         fallbackNarrative,
         fallbackBusinessSummary,
+        projectSummary,
+        companySummary,
       );
     }
+  }
+
+  private resolveProjectSummary(
+    scopeContext: ScopeContext | undefined,
+    projectKpis: ProjectKpiAggregationResult,
+    recommendation: PrimeRecommendation,
+    incidents: Incident[],
+    timeWindow: TimeWindow,
+  ): ProjectPrimeSummary | undefined {
+    const projectId =
+      scopeContext?.resolvedProjectId ?? scopeContext?.requestedProjectId ?? null;
+    if (!projectId) {
+      return undefined;
+    }
+
+    const projectName =
+      scopeContext?.resolvedProjectName ?? scopeContext?.requestedProjectId ?? projectId;
+
+    return {
+      projectId,
+      projectName,
+      healthScore: projectKpis.healthScore,
+      kpis: projectKpis.kpis,
+      recommendation,
+      severityMix: buildSeverityMix(incidents),
+      incidentTrend: buildIncidentTrend(incidents, timeWindow),
+    };
+  }
+
+  private resolveCompanySummary(
+    scopeContext: ScopeContext | undefined,
+    projectKpis: ProjectKpiAggregationResult,
+    recommendation: PrimeRecommendation,
+  ): CompanyPrimeSummary | undefined {
+    const companyId =
+      scopeContext?.resolvedCompanyId ?? scopeContext?.requestedCompanyId ?? null;
+    if (!companyId) {
+      return undefined;
+    }
+
+    const scopedServices = scopeContext?.analyzedServices ?? [];
+    const companyServiceCount =
+      scopeContext?.resolvedServiceCount ?? scopedServices.length;
+    const companyMetrics = this.companyKpiAggregator.aggregate({
+      projectKpis,
+      companyServiceCount,
+    });
+
+    return {
+      companyId,
+      companyName: scopeContext?.requestedCompanyId ?? companyId,
+      kpis: companyMetrics.kpis,
+      topRisks: companyMetrics.topRisks,
+      recommendation,
+    };
+  }
+
+  private composeReport(
+    timeWindow: TimeWindow,
+    kpis: PrimeReport["kpis"],
+    narrative: string,
+    businessSummary: string,
+    projectSummary?: ProjectPrimeSummary,
+    companySummary?: CompanyPrimeSummary,
+  ): PrimeReport {
+    return new PrimeReport(
+      new Date(),
+      timeWindow,
+      kpis,
+      narrative,
+      businessSummary,
+      projectSummary,
+      companySummary,
+    );
   }
 
   private resolveModel(): Gemini | string {

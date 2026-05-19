@@ -5,10 +5,12 @@ import {
   PropsWithChildren,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 import { analyzeLogsStream } from "@/shared/api/aiops-client";
+import { fetchProjectOwnership } from "@/shared/api/ownership-client";
 import { mergeAnalysisSnapshot } from "@/shared/lib/merge-analysis-snapshot";
 import {
   AnalysisAgentId,
@@ -18,7 +20,20 @@ import {
   applyProgressToPipeline,
   createInitialAgentPipeline,
 } from "@/shared/types/analysis-progress";
-import { AnalyzeLogsPayload, AnalyzeLogsResult } from "@/shared/types/aiops";
+import { applyAgentToolToCache } from "@/shared/lib/coerce-agent-tool-result";
+import {
+  artifactCacheFromAnalyzeLogsResult,
+  createEmptyArtifactCache,
+} from "@/shared/lib/session-artifact-cache";
+import {
+  AnalyzeLogsPayload,
+  AnalyzeLogsResult,
+  ProjectOwnershipViewModel,
+} from "@/shared/types/aiops";
+import {
+  AIOpsAgentToolId,
+  AIOpsSessionArtifactCache,
+} from "@/shared/types/session-artifact-cache";
 
 export type AnalysisWorkflowStage =
   | "idle"
@@ -102,7 +117,22 @@ function handleProgressEvent(
   }
 }
 
+export interface ProjectScopeSelection {
+  companyId: string;
+  projectId: string;
+  projectName: string;
+  serviceNames: string[];
+}
+
 interface AIOpsSessionContextValue {
+  /** SPEC-007 §4 — normalized view of session artifacts for agents and UI. */
+  artifactCache: AIOpsSessionArtifactCache;
+  /** Ownership catalog (SPEC-009) — loaded once per session for copilot + UI. */
+  projectCatalog: ProjectOwnershipViewModel[];
+  projectCatalogLoading: boolean;
+  /** User- or analysis-selected project scope; null until a project is chosen or resolved. */
+  selectedScope: ProjectScopeSelection | null;
+  setSelectedScope: (scope: ProjectScopeSelection | null) => void;
   result: AnalyzeLogsResult | null;
   isAnalyzing: boolean;
   error: string | null;
@@ -114,6 +144,10 @@ interface AIOpsSessionContextValue {
     source?: AnalysisWorkflowState["source"],
   ) => Promise<void>;
   applyResultFromCopilot: (result: AnalyzeLogsResult) => void;
+  applyIncrementalToolResult: (
+    toolName: AIOpsAgentToolId,
+    toolResult: unknown,
+  ) => boolean;
   setWorkflowStage: (
     stage: AnalysisWorkflowStage,
     source: AnalysisWorkflowState["source"],
@@ -123,7 +157,47 @@ interface AIOpsSessionContextValue {
 
 const AIOpsSessionContext = createContext<AIOpsSessionContextValue | null>(null);
 
+function scopeFromPayload(
+  payload: AnalyzeLogsPayload,
+  catalog: ProjectOwnershipViewModel[],
+): ProjectScopeSelection | null {
+  const projectId = payload.projectId?.trim();
+  if (!projectId) {
+    return null;
+  }
+
+  const project =
+    catalog.find((entry) => entry.id === projectId) ??
+    (payload.companyId
+      ? {
+          id: projectId,
+          companyId: payload.companyId,
+          name: projectId,
+          serviceNames: payload.services ?? [],
+        }
+      : null);
+
+  if (!project) {
+    return null;
+  }
+
+  return {
+    companyId: project.companyId,
+    projectId: project.id,
+    projectName: project.name,
+    serviceNames: payload.services?.length
+      ? payload.services
+      : project.serviceNames,
+  };
+}
+
 export function AIOpsSessionProvider({ children }: PropsWithChildren) {
+  const [artifactCache, setArtifactCache] = useState<AIOpsSessionArtifactCache>(
+    createEmptyArtifactCache,
+  );
+  const [projectCatalog, setProjectCatalog] = useState<ProjectOwnershipViewModel[]>([]);
+  const [projectCatalogLoading, setProjectCatalogLoading] = useState(true);
+  const [selectedScope, setSelectedScope] = useState<ProjectScopeSelection | null>(null);
   const [result, setResult] = useState<AnalyzeLogsResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +211,31 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
     detail: "Waiting for analysis request.",
     updatedAt: new Date().toISOString(),
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const catalog = await fetchProjectOwnership();
+        if (!cancelled) {
+          setProjectCatalog(catalog);
+        }
+      } catch {
+        if (!cancelled) {
+          setProjectCatalog([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectCatalogLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const setWorkflowStage = useCallback(
     (
@@ -162,6 +261,7 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       setIsAnalyzing(true);
       setError(null);
       setIncidentProgress(null);
+      setSelectedScope((current) => scopeFromPayload(payload, projectCatalog) ?? current);
       setAgentPipeline(createInitialAgentPipeline());
       setWorkflow({
         stage: "collecting_scope",
@@ -190,6 +290,8 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
           });
         });
 
+        const cache = artifactCacheFromAnalyzeLogsResult(analysis, source);
+        setArtifactCache(cache);
         setResult(analysis);
         setWorkflow({
           stage: "ready",
@@ -223,11 +325,29 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
         setIncidentProgress(null);
       }
     },
-    [],
+    [projectCatalog],
   );
 
   const applyResultFromCopilot = useCallback((copilotResult: AnalyzeLogsResult) => {
+    const cache = artifactCacheFromAnalyzeLogsResult(copilotResult, "copilot");
+    setArtifactCache(cache);
     setResult(copilotResult);
+    const resolvedProjectId =
+      copilotResult.query.resolvedProjectId ?? copilotResult.query.requestedProjectId;
+    if (resolvedProjectId) {
+      const project = projectCatalog.find((entry) => entry.id === resolvedProjectId);
+      if (project) {
+        setSelectedScope({
+          companyId: project.companyId,
+          projectId: project.id,
+          projectName:
+            copilotResult.query.resolvedProjectName ?? project.name,
+          serviceNames: copilotResult.query.analyzedServices.length
+            ? copilotResult.query.analyzedServices
+            : project.serviceNames,
+        });
+      }
+    }
     setError(null);
     setAgentPipeline(
       createInitialAgentPipeline().map((step) => ({
@@ -243,10 +363,72 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       detail: "Copilot completed analysis and synchronized dashboard state.",
       updatedAt: new Date().toISOString(),
     });
-  }, []);
+  }, [projectCatalog]);
+
+  const applyIncrementalToolResult = useCallback(
+    (toolName: AIOpsAgentToolId, toolResult: unknown): boolean => {
+      let applied = false;
+
+      setArtifactCache((current) => {
+        const next = applyAgentToolToCache(current, toolName, toolResult, "copilot");
+        if (!next) {
+          return current;
+        }
+
+        applied = true;
+        if (next.analyzeLogsResult) {
+          setResult(next.analyzeLogsResult);
+          const q = next.analyzeLogsResult.query;
+          const resolvedProjectId = q.resolvedProjectId ?? q.requestedProjectId;
+          if (resolvedProjectId) {
+            const project = projectCatalog.find((entry) => entry.id === resolvedProjectId);
+            if (project) {
+              setSelectedScope({
+                companyId: project.companyId,
+                projectId: project.id,
+                projectName: q.resolvedProjectName ?? project.name,
+                serviceNames: q.analyzedServices.length
+                  ? q.analyzedServices
+                  : project.serviceNames,
+              });
+            }
+          }
+        } else if (next.cache.query) {
+          const q = next.cache.query;
+          const resolvedProjectId = q.resolvedProjectId ?? q.requestedProjectId;
+          if (resolvedProjectId) {
+            const project = projectCatalog.find((entry) => entry.id === resolvedProjectId);
+            if (project) {
+              setSelectedScope({
+                companyId: project.companyId,
+                projectId: project.id,
+                projectName: q.resolvedProjectName ?? project.name,
+                serviceNames: q.analyzedServices.length
+                  ? q.analyzedServices
+                  : project.serviceNames,
+              });
+            }
+          }
+        }
+        return next.cache;
+      });
+
+      if (applied) {
+        setError(null);
+      }
+
+      return applied;
+    },
+    [projectCatalog],
+  );
 
   const value = useMemo(
     () => ({
+      artifactCache,
+      projectCatalog,
+      projectCatalogLoading,
+      selectedScope,
+      setSelectedScope,
       result,
       isAnalyzing,
       error,
@@ -255,9 +437,14 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       incidentProgress,
       runAnalysis,
       applyResultFromCopilot,
+      applyIncrementalToolResult,
       setWorkflowStage,
     }),
     [
+      artifactCache,
+      projectCatalog,
+      projectCatalogLoading,
+      selectedScope,
       result,
       isAnalyzing,
       error,
@@ -266,6 +453,7 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       incidentProgress,
       runAnalysis,
       applyResultFromCopilot,
+      applyIncrementalToolResult,
       setWorkflowStage,
     ],
   );

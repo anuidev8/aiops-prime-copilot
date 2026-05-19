@@ -42,7 +42,7 @@ export function PrimeKpiGrid({ kpis }: PrimeKpiGridProps) {
       {kpis.map((kpi) => (
         <article
           key={kpi.name}
-          className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors hover:bg-slate-800/50"
+          className="rounded-xl border border-border/60 bg-secondary/40 p-4 transition-colors hover:bg-secondary/60 hover:border-primary/20"
         >
           <div className="flex items-start justify-between gap-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{kpi.name}</p>

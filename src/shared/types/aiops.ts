@@ -1,7 +1,29 @@
 export type SeverityLevel = "critical" | "high" | "medium" | "low";
 
+export interface SeverityMixSliceViewModel {
+  severity: SeverityLevel;
+  count: number;
+  percentage: number;
+}
+
+export interface ProjectIncidentTrendPointViewModel {
+  label: string;
+  timestamp: string;
+  incidentCount: number;
+  criticalCount: number;
+}
+
+export interface ProjectOwnershipViewModel {
+  id: string;
+  companyId: string;
+  name: string;
+  serviceNames: string[];
+}
+
 export interface AnalyzeLogsPayload {
   prompt?: string;
+  companyId?: string;
+  projectId?: string;
   services?: string[];
   timeWindowMinutes?: number;
 }
@@ -47,6 +69,38 @@ export interface PrimeReportViewModel {
   narrative: string;
   businessSummary: string;
   kpis: PrimeKpiViewModel[];
+  projectSummary?: {
+    projectId: string;
+    projectName: string;
+    healthScore: number;
+    kpis: PrimeKpiViewModel[];
+    severityMix: SeverityMixSliceViewModel[];
+    incidentTrend: ProjectIncidentTrendPointViewModel[];
+    recommendation: {
+      priority: "P0" | "P1" | "P2";
+      riskLevel: "high" | "medium" | "low";
+      confidence: number;
+      evidence: string[];
+      immediateAction: string;
+      shortTermAction: string;
+      strategicAction: string;
+    };
+  };
+  companySummary?: {
+    companyId: string;
+    companyName: string;
+    kpis: PrimeKpiViewModel[];
+    topRisks: string[];
+    recommendation: {
+      priority: "P0" | "P1" | "P2";
+      riskLevel: "high" | "medium" | "low";
+      confidence: number;
+      evidence: string[];
+      immediateAction: string;
+      shortTermAction: string;
+      strategicAction: string;
+    };
+  };
 }
 
 export type GenerativeUiBlock =
@@ -59,6 +113,12 @@ export type GenerativeUiBlock =
 
 export interface AnalyzeLogsResult {
   query: {
+    requestedCompanyId?: string | null;
+    requestedProjectId?: string | null;
+    resolvedCompanyId?: string | null;
+    resolvedProjectId?: string | null;
+    resolvedProjectName?: string | null;
+    resolvedServiceCount?: number;
     requestedServices: string[];
     analyzedServices: string[];
     requestedTimeWindowMinutes: number | null;

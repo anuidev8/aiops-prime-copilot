@@ -1,7 +1,13 @@
 import { SeverityLevel } from "../../domain/common/value-objects/severity";
+import {
+  ProjectIncidentTrendPoint,
+  SeverityMixSlice,
+} from "../../domain/project-analytics/services/project-scope-insights";
 
 export interface AnalyzeLogsCommand {
   prompt?: string;
+  companyId?: string;
+  projectId?: string;
   services?: string[];
   timeWindowMinutes?: number;
 }
@@ -47,6 +53,38 @@ export interface PrimeReportDto {
   narrative: string;
   businessSummary: string;
   kpis: PrimeKpiDto[];
+  projectSummary?: {
+    projectId: string;
+    projectName: string;
+    healthScore: number;
+    kpis: PrimeKpiDto[];
+    severityMix: SeverityMixSlice[];
+    incidentTrend: ProjectIncidentTrendPoint[];
+    recommendation: {
+      priority: "P0" | "P1" | "P2";
+      riskLevel: "high" | "medium" | "low";
+      confidence: number;
+      evidence: string[];
+      immediateAction: string;
+      shortTermAction: string;
+      strategicAction: string;
+    };
+  };
+  companySummary?: {
+    companyId: string;
+    companyName: string;
+    kpis: PrimeKpiDto[];
+    topRisks: string[];
+    recommendation: {
+      priority: "P0" | "P1" | "P2";
+      riskLevel: "high" | "medium" | "low";
+      confidence: number;
+      evidence: string[];
+      immediateAction: string;
+      shortTermAction: string;
+      strategicAction: string;
+    };
+  };
 }
 
 export type GenerativeUiBlock =
@@ -65,6 +103,12 @@ export type GenerativeUiBlock =
 
 export interface AnalyzeLogsResult {
   query: {
+    requestedCompanyId?: string | null;
+    requestedProjectId?: string | null;
+    resolvedCompanyId?: string | null;
+    resolvedProjectId?: string | null;
+    resolvedProjectName?: string | null;
+    resolvedServiceCount?: number;
     requestedServices: string[];
     analyzedServices: string[];
     requestedTimeWindowMinutes: number | null;

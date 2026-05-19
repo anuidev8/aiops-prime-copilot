@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Inter, Space_Grotesk } from "next/font/google";
+
+const bodySans = Inter({
+  variable: "--font-body-sans",
+  subsets: ["latin"],
+});
 import "@copilotkit/react-core/v2/styles.css";
 import "./globals.css";
 import { MainLayoutShell } from "@/shared/ui/main-layout-shell";
@@ -29,9 +34,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${displaySans.variable} ${mono.variable} h-full antialiased dark`}
+      className={`${displaySans.variable} ${mono.variable} ${bodySans.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex text-slate-300">
+      <body className="min-h-full flex text-foreground">
         <MainLayoutShell>
           {children}
         </MainLayoutShell>
