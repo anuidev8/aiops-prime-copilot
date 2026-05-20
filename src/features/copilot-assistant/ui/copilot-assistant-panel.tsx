@@ -15,12 +15,42 @@ interface CopilotAssistantPanelProps {
 }
 
 const easeOut = [0.32, 0.72, 0, 1] as const;
-const pillTransition = { type: "spring" as const, stiffness: 400, damping: 32 };
+const pillTransition = { type: "spring" as const, stiffness: 420, damping: 34 };
 
-function subStepIcon(status: "pending" | "running" | "complete"): string {
-  if (status === "complete") return "✓";
-  if (status === "running") return "⏳";
-  return "○";
+const TAB_LABELS: Record<CopilotTab, string> = {
+  chat: "Chat",
+  avatar: "Avatar",
+};
+
+function StepIcon({ status }: { status: "pending" | "running" | "complete" }) {
+  if (status === "complete") {
+    return (
+      <div className="text-green-500">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </div>
+    );
+  }
+  if (status === "running") {
+    return (
+      <div
+        className="h-3.5 w-3.5 rounded-full border-2 border-indigo-600 border-r-transparent animate-spin"
+        aria-hidden
+      />
+    );
+  }
+  return <div className="h-3.5 w-3.5 rounded-full border-2 border-slate-200" aria-hidden />;
 }
 
 export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelProps) {
@@ -36,11 +66,6 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
     incidentProgress,
     workflow,
     isAnalyzing,
-    reportLayerOpen,
-    reportCanvas,
-    reportSectionReviews,
-    selectedCanvasBlockId,
-    reportCanvasGenerating,
   } = useAIOpsSession();
 
   const summary = useMemo(
@@ -72,18 +97,20 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
     ],
   );
 
+  const pipelineRunning = agentPipeline.some((step) => step.status === "running");
+
   return (
-    <div className="flex h-full min-h-0 max-h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-[0_16px_34px_-26px_hsl(225_30%_30%/0.45)]">
-      <div className="shrink-0 border-b border-border/80 px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
+    <div className="flex h-full min-h-0 max-h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-display text-lg font-semibold text-foreground">Data Assistant</p>
-            <p className="text-xs text-muted-foreground">Powered by CopilotKit</p>
+            <p className="text-base font-semibold text-slate-900">Data Assistant</p>
+            <p className="text-xs text-slate-500">Powered by CopilotKit</p>
           </div>
           <button
             type="button"
             aria-label="Close panel"
-            className="rounded-lg border border-border bg-white p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18" />
@@ -92,7 +119,7 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
           </button>
         </div>
 
-        <div className="relative mt-3 inline-flex rounded-xl border border-border bg-secondary/45 p-1">
+        <div className="relative mt-3 flex w-full rounded-full border border-slate-200 bg-slate-50/90 p-1">
           {(["chat", "avatar"] as const).map((id) => {
             const active = activeTab === id;
             return (
@@ -101,18 +128,18 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
                 type="button"
                 onClick={() => setTab(id)}
                 className={[
-                  "relative z-10 rounded-lg px-3 py-1.5 text-xs font-medium capitalize",
-                  active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  "relative z-10 flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  active ? "text-white" : "text-slate-600 hover:text-slate-900",
                 ].join(" ")}
               >
                 {active ? (
                   <motion.span
                     layoutId="copilot-tab-pill"
-                    className="absolute inset-0 rounded-lg bg-gradient-primary"
+                    className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 shadow-[0_4px_14px_-4px_rgba(79,70,229,0.55)]"
                     transition={pillTransition}
                   />
                 ) : null}
-                <span className="relative">{id}</span>
+                <span className="relative">{TAB_LABELS[id]}</span>
               </button>
             );
           })}
@@ -122,62 +149,70 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
         {activeTab === "chat" ? (
           <>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-white p-2">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key="chat"
                   className="flex h-full min-h-0 flex-col"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.28, ease: easeOut }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.24, ease: easeOut }}
                 >
                   {chat}
                 </motion.div>
               </AnimatePresence>
             </div>
 
-            <section className="rounded-2xl border border-border bg-white p-3">
-              <div className="flex items-center justify-between text-xs">
-                <p className="font-medium text-foreground">Analysis Agent</p>
-                <span className="text-muted-foreground">{summary.pipelineProgressPercent}%</span>
-              </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{summary.pipelinePhaseLabel}</p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
+            <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-slate-900">Analysis Agent</h4>
                 <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${summary.pipelineProgressPercent}%` }}
+                  className={[
+                    "h-2 w-2 rounded-full",
+                    pipelineRunning ? "animate-pulse bg-indigo-500" : "bg-green-500",
+                  ].join(" ")}
                 />
               </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span className="truncate pr-2">{summary.pipelinePhaseLabel}</span>
+                  <span className="shrink-0">{summary.pipelineProgressPercent}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                    style={{ width: `${summary.pipelineProgressPercent}%` }}
+                  />
+                </div>
+              </div>
+
               {incidentProgress ? (
-                <p className="mt-2 text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-slate-500">
                   Incident {incidentProgress.current} of {incidentProgress.total}:{" "}
                   {incidentProgress.service}
                 </p>
               ) : null}
-              <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Current steps
-              </p>
-              <ul className="mt-2 space-y-1.5 text-xs">
-                {summary.telemetrySubSteps.map((step) => (
-                  <li key={step.id} className="flex items-center gap-2">
-                    <span className="w-4 shrink-0 text-center text-[11px]">
-                      {subStepIcon(step.status)}
-                    </span>
-                    <span
-                      className={
-                        step.status === "complete"
-                          ? "text-foreground"
-                          : step.status === "running"
-                            ? "font-medium text-primary"
-                            : "text-muted-foreground"
-                      }
+
+              <div className="mt-1 flex flex-col gap-2.5">
+                <h5 className="text-xs font-semibold text-slate-900">Current steps</h5>
+                <ul className="flex flex-col gap-2 text-xs text-slate-600">
+                  {summary.telemetrySubSteps.map((step) => (
+                    <li
+                      key={step.id}
+                      className={[
+                        "flex items-center gap-2",
+                        step.status === "running" ? "font-medium text-slate-900" : "",
+                        step.status === "pending" ? "text-slate-400" : "",
+                      ].join(" ")}
                     >
-                      {step.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <StepIcon status={step.status} />
+                      <span>{step.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
           </>
         ) : (
@@ -185,10 +220,10 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
             <motion.div
               key="avatar"
               className="flex min-h-0 flex-1 flex-col"
-              initial={{ opacity: 0, scale: 0.98 }}
+              initial={{ opacity: 0, scale: 0.99 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.32, ease: easeOut }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.28, ease: easeOut }}
             >
               <CopilotAvatarView />
             </motion.div>

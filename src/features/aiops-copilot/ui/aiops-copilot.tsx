@@ -990,14 +990,13 @@ function CopilotChatSurface() {
   }, [agent, workspaceState, selectedCanvasBlockId]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col" data-sidebar-chat>
       <CopilotChat
         chatView={AIOpsCopilotChatView}
         labels={{
           chatInputPlaceholder: reportLayerOpen
             ? "Ask about this report…"
             : "Ask about your data…",
-          welcomeMessageText: "How can I help with your operations workspace?",
           modalHeaderTitle: "AIOps Copilot",
         }}
       />
