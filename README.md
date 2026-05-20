@@ -1,10 +1,8 @@
 # AIOps Prime Copilot
 
-<video src="https://res.cloudinary.com/dnmjmjdsj/video/upload/v1779236264/Screen_Recording_2026-05-19_at_7.04.21_PM_t0yjvc.mp4" poster="./docs/assets/aiops-prime-copilot-preview.png" controls width="100%">
-  <a href="https://res.cloudinary.com/dnmjmjdsj/video/upload/v1779236264/Screen_Recording_2026-05-19_at_7.04.21_PM_t0yjvc.mp4">
-    <img src="./docs/assets/aiops-prime-copilot-preview.png" alt="AIOps Prime Copilot — preview" width="100%" />
-  </a>
-</video>
+[![AIOps Prime Copilot — demo preview](https://res.cloudinary.com/dnmjmjdsj/image/upload/v1779236562/imagexathmnails_wfuvll.png)](https://res.cloudinary.com/dnmjmjdsj/video/upload/v1779236264/Screen_Recording_2026-05-19_at_7.04.21_PM_t0yjvc.mp4)
+
+▶️ _Click the image to watch the demo._
 
 Plataforma **multiagente** para operaciones en la nube: detecta incidentes desde telemetría, analiza causa raíz, genera reportes ejecutivos **PRIME** y expone todo en un workspace con **copilot conversacional** — con alcance **empresa → proyecto → servicios**.
 
