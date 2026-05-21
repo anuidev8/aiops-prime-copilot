@@ -13,25 +13,36 @@ import {
   TELEMETRY_WORKER_INSTRUCTION,
 } from "./aiops-coordinator-prompt";
 import { createAIOpsCoordinatorTools } from "./aiops-coordinator-tools";
+import { createCopilotFrontendPassthroughTools } from "./copilot-frontend-tool-bridge";
 
-let cachedCoordinator: LlmAgent | null = null;
+/** Slim tree for `adk web` / `adk run`. Copilot chat uses `copilot` profile. */
+export type AIOpsCoordinatorProfile = "adk-dev" | "copilot";
 
-export function createAIOpsCoordinatorAgent(): LlmAgent {
-  if (cachedCoordinator) {
-    return cachedCoordinator;
+const coordinatorCache: Partial<Record<AIOpsCoordinatorProfile, LlmAgent>> = {};
+
+export function createAIOpsCoordinatorAgent(
+  profile: AIOpsCoordinatorProfile = "adk-dev",
+): LlmAgent {
+  const cached = coordinatorCache[profile];
+  if (cached) {
+    return cached;
   }
 
-  const runTelemetryUseCase = createRunTelemetryUseCase();
-  const runAnalystUseCase = createRunAnalystUseCase();
-  const runReporterUseCase = createRunReporterUseCase();
-  const projectOwnershipRepository = createProjectOwnershipRepository();
-
   const tools = createAIOpsCoordinatorTools({
-    runTelemetryUseCase,
-    runAnalystUseCase,
-    runReporterUseCase,
-    projectOwnershipRepository,
+    runTelemetryUseCase: createRunTelemetryUseCase(),
+    runAnalystUseCase: createRunAnalystUseCase(),
+    runReporterUseCase: createRunReporterUseCase(),
+    projectOwnershipRepository: createProjectOwnershipRepository(),
   });
+
+  const coordinatorTools =
+    profile === "copilot"
+      ? [
+          tools.listProjectOwnershipTool,
+          tools.analyzeLogsTool,
+          ...createCopilotFrontendPassthroughTools(),
+        ]
+      : [tools.listProjectOwnershipTool, tools.analyzeLogsTool];
 
   const model = resolveAdkGeminiModel();
 
@@ -65,36 +76,23 @@ export function createAIOpsCoordinatorAgent(): LlmAgent {
     disallowTransferToPeers: true,
   });
 
-  cachedCoordinator = new LlmAgent({
+  const coordinator = new LlmAgent({
     name: "aiops_coordinator",
     description:
       "AIOps Prime coordinator — routes chat to telemetry, analyst, and reporter workers.",
     model,
     instruction: AIOPS_COORDINATOR_INSTRUCTION,
-    tools: [
-      tools.listProjectOwnershipTool,
-      tools.analyzeLogsTool,
-      tools.setDashboardFocusTool,
-      tools.openReportCanvasTool,
-      tools.downloadReportPdfTool,
-      tools.selectReportSectionTool,
-      tools.startReportSectionEditTool,
-      tools.updateReportSectionTool,
-      tools.setReportSectionReviewStatusTool,
-      tools.suggestReportSectionEditsTool,
-      tools.confirmRejectReportSectionTool,
-      tools.rewriteSelectedCanvasTextTool,
-      tools.suggestSelectedCanvasChartKpiTool,
-      tools.showRecommendationCardTool,
-      tools.renderAnalysisSummaryTool,
-    ],
+    tools: coordinatorTools,
     subAgents: [telemetryWorker, analystWorker, reporterWorker],
   });
 
-  return cachedCoordinator;
+  coordinatorCache[profile] = coordinator;
+  return coordinator;
 }
 
-/** @internal Test-only reset for singleton coordinator. */
+/** @internal Test-only reset for singleton coordinators. */
 export function resetAIOpsCoordinatorAgentForTests(): void {
-  cachedCoordinator = null;
+  for (const key of Object.keys(coordinatorCache) as AIOpsCoordinatorProfile[]) {
+    delete coordinatorCache[key];
+  }
 }

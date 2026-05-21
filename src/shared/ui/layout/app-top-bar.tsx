@@ -11,15 +11,22 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 
 export function AppTopBar({ reportFocusMode = false }: AppTopBarProps) {
   return (
-    <header className="z-10 flex shrink-0 items-center justify-between border-b border-border/90 bg-white px-4 py-3 sm:px-6">
-      
-      <div className="flex-1" />
+    <header className="z-10 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+      <div className="flex w-64 shrink-0 items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-50 text-lg font-bold text-indigo-600">
+          A
+        </div>
+        <div className="flex gap-1 text-lg font-semibold">
+          <span className="text-slate-900">AIOps</span>
+          <span className="text-indigo-600">Prime Copilot</span>
+        </div>
+      </div>
 
       <AnimatePresence initial={false}>
         {!reportFocusMode ? (
           <motion.div
             key="topbar-pipeline-strip"
-            className="hidden flex-1 justify-center xl:flex"
+            className="hidden flex-1 justify-center px-8 xl:flex"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
@@ -27,41 +34,39 @@ export function AppTopBar({ reportFocusMode = false }: AppTopBarProps) {
           >
             <PipelineStrip />
           </motion.div>
-        ) : null}
+        ) : (
+          <div className="hidden flex-1 xl:block" />
+        )}
       </AnimatePresence>
 
-      <div className="flex flex-1 shrink-0 items-center justify-end gap-3 sm:gap-4">
-        <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inset-0 rounded-full bg-emerald-400/70 animate-ping-soft" />
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          <span className="text-xs font-semibold text-emerald-700">Live</span>
+      <div className="flex shrink-0 items-center justify-end gap-3 sm:gap-4">
+        <div className="hidden items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 sm:flex">
+          <span className="h-2 w-2 rounded-full bg-green-500" />
+          Live
         </div>
 
         <button
           type="button"
-          className="rounded-full border border-border bg-white p-2 text-muted-foreground transition-colors hover:text-foreground shadow-sm"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100"
           aria-label="Notifications"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
         </button>
 
-        <img 
-          src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" 
+        <img
+          src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
           alt="User Avatar"
-          className="h-9 w-9 rounded-full border border-border object-cover shadow-sm bg-secondary"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-slate-100 object-cover"
         />
 
         <button
           type="button"
-          className="hidden xl:flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+          className="hidden items-center gap-2 rounded-md border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-100 xl:flex"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
           Report Lab
         </button>
       </div>
     </header>
   );
 }
-

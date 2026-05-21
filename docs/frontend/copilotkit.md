@@ -83,6 +83,40 @@ CopilotKit handles streaming UI; **your code** reacts in `useRenderTool` / `Incr
 
 ---
 
+## 2b. Voice execution channel (`chat` vs `voice`)
+
+Gemini Live voice uses the same `runAgent` path and ADK tools as typed chat, but it runs in a dedicated channel stored in `AIOpsSessionProvider`:
+
+- `executionChannel: "chat" | "voice"`
+- `voiceRunActive` derived from `executionChannel === "voice"`
+
+Voice flow (`use-copilot-voice-bridge.ts`):
+
+1. Set `executionChannel = "voice"` and `voiceSessionStatus = "thinking"`.
+2. Forward transcript to CopilotKit and run `copilotkit.runAgent({ agent })`.
+3. Keep backend/frontend tool side effects active (cache, dashboard, report layer).
+4. Build short `[VOICE_READOUT]...` speech text from tool results/cache.
+5. Clear run messages from thread and reset `executionChannel = "chat"`.
+
+While `executionChannel === "voice"`:
+
+- Chat suppresses assistant/activity/reasoning rendering (`AIOpsCopilotChatView`).
+- Incremental tool cards and frontend tool renderers return `null`.
+- HITL cards are not shown in chat; voice mode auto-responds where required.
+
+Gemini Live function calling is enabled in `buildVoiceLiveConnectConfig()` and handled in `use-copilot-voice-bridge.ts`:
+
+- `runTelemetryViaCopilot`
+- `runAnalystViaCopilot`
+- `runReporterViaCopilot`
+- `openReportCanvas`
+- `setDashboardFocus`
+- `getAnalysisSummaryForVoice`
+
+These function calls delegate to the same CopilotKit/ADK + session executors used by chat.
+
+---
+
 ## 3. Session state ↔ agent (`useAgentContext`)
 
 Every turn, the frontend sends **read-only context** so ADK (or legacy agent) sees cache, scope, and UI state without extra round-trips.
@@ -192,7 +226,7 @@ Handler runs **in the browser**; optional `render` for inline status.
 
 Defined in: `src/features/aiops-copilot/ui/aiops-copilot.tsx`
 
-**ADK bridge:** the same names are registered on the coordinator via `createFrontendBridgeTool` in `aiops-coordinator-tools.ts` so the model can call them when ADK is active. The bridge mapper lists them in `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES`; execution still happens in the browser through `useFrontendTool`.
+**ADK bridge:** Copilot chat uses coordinator profile `copilot` (`createAIOpsCoordinatorAgent("copilot")`), which attaches passthrough tools from `copilot-frontend-tool-bridge.ts` so the model can invoke them; handlers run in the browser via `useFrontendTool`. `adk web` uses the slim `adk-dev` profile (backend tools only on the coordinator). Context still flows via `useAgentContext` on every turn.
 
 ---
 

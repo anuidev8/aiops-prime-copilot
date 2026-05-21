@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   CopilotChat,
   CopilotKit,
@@ -16,6 +16,14 @@ import { useSyncAdkPipelineChatActivity } from "@/features/agent-pipeline/hooks/
 import { adkPipelineActivityRenderer } from "@/features/agent-pipeline/ui/adk-pipeline-chat-activity";
 import { AnalysisSummaryChatCard } from "@/features/aiops-copilot/ui/analysis-summary-chat-card";
 import { AIOpsCopilotChatView } from "@/features/aiops-copilot/ui/aiops-copilot-chat-view";
+import { LiveAPIProvider } from "@/features/voice-live/context/live-api-context";
+import {
+  executeOpenReportCanvas,
+  executeSetDashboardFocus,
+  executeShowRecommendationCard,
+} from "@/features/voice-live/lib/voice-copilot-actions";
+import { resolvePublicGeminiApiKey } from "@/features/voice-live/lib/voice-live-config";
+import { CopilotVoiceBridge } from "@/features/voice-live/ui/copilot-voice-bridge";
 import {
   ReportSectionSuggestionCard,
   type ReportEditSuggestion,
@@ -86,6 +94,7 @@ function CopilotChatSurface() {
     setDashboardFocus,
     generateReportCanvas,
     reportCanvasGenerating,
+    executionChannel,
     updateCanvasTextBlock,
     updateCanvasChartBlock,
     agentPipeline,
@@ -95,8 +104,48 @@ function CopilotChatSurface() {
   const { agent } = useAgent({ agentId: "default" });
   const { copilotkit } = useCopilotKit();
   const reportActionRunRef = useRef<string | null>(null);
+  const voiceAutoResponsesRef = useRef<Set<string>>(new Set());
   const agentIsRunning = agent.isRunning;
   useSyncAdkPipelineChatActivity(agent);
+
+  useEffect(() => {
+    if (executionChannel !== "voice") {
+      voiceAutoResponsesRef.current.clear();
+    }
+  }, [executionChannel]);
+
+  const maybeAutoRespondInVoice = useCallback(
+    ({
+      key,
+      status,
+      respond,
+      payload,
+      afterRespond,
+    }: {
+      key: string;
+      status: string;
+      respond?: (value: Record<string, unknown>) => void | Promise<void>;
+      payload: Record<string, unknown>;
+      afterRespond?: () => void;
+    }): boolean => {
+      if (executionChannel !== "voice" || status !== "executing" || !respond) {
+        return false;
+      }
+
+      const responseKey = `${key}:${JSON.stringify(payload)}`;
+      if (voiceAutoResponsesRef.current.has(responseKey)) {
+        return true;
+      }
+
+      voiceAutoResponsesRef.current.add(responseKey);
+      queueMicrotask(() => {
+        void respond(payload);
+        afterRespond?.();
+      });
+      return true;
+    },
+    [executionChannel],
+  );
 
   useIncrementalAgentCopilotTools({
     onApplyResult: applyResultFromCopilot,
@@ -150,28 +199,12 @@ function CopilotChatSurface() {
       metricName: z.string().optional(),
       reason: z.string().optional(),
     }),
-    handler: async (args) => {
-      const projectName =
-        args.projectName ??
-        (args.projectId
-          ? projectCatalog.find((project) => project.id === args.projectId)?.name
-          : undefined);
-
-      setDashboardFocus({
-        scope: args.scope,
-        projectId: args.projectId,
-        projectName,
-        serviceName: args.serviceName,
-        metricName: args.metricName,
-        reason: args.reason ?? `Copilot set dashboard focus to ${args.scope}.`,
-        source: "copilot",
-      });
-
-      return {
-        ok: true,
-        message: `Dashboard focus set to ${args.scope}.`,
-      };
-    },
+    handler: async (args) =>
+      executeSetDashboardFocus({
+        args,
+        projectCatalog,
+        setDashboardFocus,
+      }),
   }, [projectCatalog, setDashboardFocus]);
 
   useFrontendTool({
@@ -179,29 +212,19 @@ function CopilotChatSurface() {
     description:
       "Open the in-dashboard report layer with structured PRIME sections (narrative, KPIs, recommendations). Call after runReporterAgent instead of pasting the full report in chat.",
     parameters: z.object({}),
-    handler: async () => {
-      if (reportLayerOpen && reportCanvas && !reportCanvasGenerating) {
-        return {
-          ok: true,
-          message: "Report canvas is already open in the workspace.",
-        };
-      }
-      if (reportCanvas && !reportLayerOpen && !reportCanvasGenerating) {
-        setReportCanvasMode("present");
-        setReportLayerOpen(true);
-        return {
-          ok: true,
-          message: "Report canvas opened in presentation mode.",
-        };
-      }
-      await generateReportCanvas();
-      return {
-        ok: true,
-        message:
-          "Report layer opened with structured sections. User can edit on top of the dashboard.",
-      };
-    },
+    handler: async () =>
+      executeOpenReportCanvas({
+        reportLayerOpen,
+        reportCanvas,
+        reportCanvasGenerating,
+        setReportCanvasMode,
+        setReportLayerOpen,
+        generateReportCanvas,
+      }),
     render: ({ status }) => {
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status === "inProgress" || status === "executing" || reportCanvasGenerating) {
         return (
           <div className="my-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
@@ -229,6 +252,7 @@ function CopilotChatSurface() {
     reportCanvas,
     reportCanvasGenerating,
     reportLayerOpen,
+    executionChannel,
     setReportCanvasMode,
     setReportLayerOpen,
   ]);
@@ -514,6 +538,9 @@ function CopilotChatSurface() {
       message: "Edit suggestions displayed in chat.",
     }),
     render: ({ status, args }) => {
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status !== "complete") {
         return (
           <p className="my-2 text-xs text-muted-foreground">Preparing edit suggestions…</p>
@@ -568,6 +595,7 @@ function CopilotChatSurface() {
       );
     },
   }, [
+    executionChannel,
     reportCanvas,
     selectedCanvasBlockId,
     setReportCopilotIntent,
@@ -586,6 +614,20 @@ function CopilotChatSurface() {
     }),
     render: ({ status, args, respond }) => {
       const targetId = args.blockId ?? selectedCanvasBlockId;
+      if (
+        maybeAutoRespondInVoice({
+          key: `confirmRejectReportSection:${targetId ?? "none"}`,
+          status,
+          respond,
+          payload: { confirmed: false, blockId: targetId ?? null },
+          afterRespond: cancelReportReject,
+        })
+      ) {
+        return null;
+      }
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status !== "executing" || !respond || !targetId) {
         return null;
       }
@@ -633,6 +675,8 @@ function CopilotChatSurface() {
       );
     },
   }, [
+    executionChannel,
+    maybeAutoRespondInVoice,
     cancelReportReject,
     confirmReportReject,
     reportCanvas,
@@ -654,6 +698,19 @@ function CopilotChatSurface() {
     render: ({ status, args, respond }) => {
       const targetId = args.blockId ?? selectedCanvasBlockId;
       const targetBlock = reportCanvas?.blocks.find((block) => block.id === targetId);
+      if (
+        maybeAutoRespondInVoice({
+          key: `rewriteSelectedCanvasText:${targetId ?? "none"}`,
+          status,
+          respond,
+          payload: { approved: false, blockId: targetId ?? null },
+        })
+      ) {
+        return null;
+      }
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status !== "executing" || !respond || !targetId) {
         return null;
       }
@@ -703,6 +760,8 @@ function CopilotChatSurface() {
       );
     },
   }, [
+    executionChannel,
+    maybeAutoRespondInVoice,
     reportCanvas,
     selectedCanvasBlockId,
     setSelectedCanvasBlockId,
@@ -724,6 +783,19 @@ function CopilotChatSurface() {
     render: ({ status, args, respond }) => {
       const targetId = args.blockId ?? selectedCanvasBlockId;
       const targetBlock = reportCanvas?.blocks.find((block) => block.id === targetId);
+      if (
+        maybeAutoRespondInVoice({
+          key: `suggestSelectedCanvasChartKpi:${targetId ?? "none"}`,
+          status,
+          respond,
+          payload: { approved: false, blockId: targetId ?? null },
+        })
+      ) {
+        return null;
+      }
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status !== "executing" || !respond || !targetId) {
         return null;
       }
@@ -774,6 +846,8 @@ function CopilotChatSurface() {
       );
     },
   }, [
+    executionChannel,
+    maybeAutoRespondInVoice,
     reportCanvas,
     selectedCanvasBlockId,
     setSelectedCanvasBlockId,
@@ -792,30 +866,12 @@ function CopilotChatSurface() {
       projectName: z.string().optional(),
       reason: z.string().optional(),
     }),
-    handler: async (args) => {
-      const projectName =
-        args.projectName ??
-        (args.projectId
-          ? projectCatalog.find((project) => project.id === args.projectId)?.name
-          : undefined);
-
-      setDashboardFocus({
-        scope: "recommendation",
-        projectId: args.projectId,
-        projectName,
-        recommendationTitle: args.title,
-        recommendationPriority: args.priority,
-        recommendationRiskLevel: args.riskLevel,
-        recommendationContent: args.content,
-        reason: args.reason ?? "Copilot surfaced a recommendation card.",
-        source: "copilot",
-      });
-
-      return {
-        ok: true,
-        message: `Recommendation card "${args.title}" displayed.`,
-      };
-    },
+    handler: async (args) =>
+      executeShowRecommendationCard({
+        args,
+        projectCatalog,
+        setDashboardFocus,
+      }),
   }, [projectCatalog, setDashboardFocus]);
 
   const workspaceState = useMemo(
@@ -875,6 +931,9 @@ function CopilotChatSurface() {
       summary: workspaceState.analysisSummary,
     }),
     render: ({ status }) => {
+      if (executionChannel === "voice") {
+        return null;
+      }
       if (status !== "complete") {
         return (
           <p className="my-2 text-xs text-muted-foreground">
@@ -893,7 +952,12 @@ function CopilotChatSurface() {
         />
       );
     },
-  }, [workspaceState.analysisSummary, generateReportCanvas, setReportLayerOpen]);
+  }, [
+    executionChannel,
+    workspaceState.analysisSummary,
+    generateReportCanvas,
+    setReportLayerOpen,
+  ]);
 
   const sharedContext = useMemo(
     () =>
@@ -926,6 +990,7 @@ function CopilotChatSurface() {
           agentPipeline,
           incidentProgress,
           isAnalyzing,
+          executionChannel,
         }),
       ) as JsonSerializable,
     [
@@ -952,6 +1017,7 @@ function CopilotChatSurface() {
       agentPipeline,
       incidentProgress,
       isAnalyzing,
+      executionChannel,
     ],
   );
 
@@ -1004,8 +1070,10 @@ function CopilotChatSurface() {
   );
 }
 
-export function AIOpsCopilot() {
+/** CopilotKit + optional Gemini Live voice layer (wraps workspace + chat). */
+export function AIOpsCopilotRoot({ children }: PropsWithChildren) {
   const runtimeUrl = process.env.NEXT_PUBLIC_COPILOT_RUNTIME_URL ?? "/api/copilotkit";
+  const apiKey = resolvePublicGeminiApiKey();
 
   return (
     <CopilotKit
@@ -1014,7 +1082,18 @@ export function AIOpsCopilot() {
       debug={false}
       renderActivityMessages={ACTIVITY_RENDERERS}
     >
-      <CopilotChatSurface />
+      {apiKey ? (
+        <LiveAPIProvider apiKey={apiKey}>
+          <CopilotVoiceBridge />
+          {children}
+        </LiveAPIProvider>
+      ) : (
+        children
+      )}
     </CopilotKit>
   );
+}
+
+export function AIOpsCopilot() {
+  return <CopilotChatSurface />;
 }

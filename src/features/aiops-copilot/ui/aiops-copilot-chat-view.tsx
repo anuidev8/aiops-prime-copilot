@@ -2,11 +2,15 @@
 
 import {
   CopilotChat,
+  CopilotChatUserMessage,
+  type CopilotChatUserMessageProps,
   CopilotChatView,
   type CopilotChatViewProps,
 } from "@copilotkit/react-core/v2";
 import { motion, useReducedMotion } from "framer-motion";
 import { aiopsCopilotChatInputConfig } from "@/features/aiops-copilot/ui/aiops-copilot-chat-input";
+import { VOICE_TRANSCRIPT_MESSAGE_ID_PREFIX } from "@/features/voice-live/lib/voice-live-config";
+import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
 
 const easeOut = [0.32, 0.72, 0, 1] as const;
 
@@ -20,6 +24,30 @@ const userBubbleClass =
 
 const welcomeBubbleClass =
   "w-fit max-w-[min(85%,20rem)] rounded-xl rounded-tl-sm border border-slate-100 bg-slate-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-700";
+
+function isVoiceTranscriptMessageId(messageId: string): boolean {
+  return messageId.startsWith(VOICE_TRANSCRIPT_MESSAGE_ID_PREFIX);
+}
+
+function VoiceAwareUserMessage({
+  message,
+  className,
+  messageRenderer,
+  ...rest
+}: CopilotChatUserMessageProps) {
+  if (isVoiceTranscriptMessageId(message.id)) {
+    return null;
+  }
+
+  return (
+    <CopilotChatUserMessage
+      {...rest}
+      message={message}
+      className={["!pt-2", className].filter(Boolean).join(" ")}
+      messageRenderer={messageRenderer ?? userBubbleClass}
+    />
+  );
+}
 
 function AIOpsChatWelcome({
   input,
@@ -102,6 +130,7 @@ function mergeObjectSlot<T extends Record<string, unknown>>(
 function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
   const {
     className,
+    messages,
     messageView,
     input,
     scrollView,
@@ -109,6 +138,21 @@ function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
     welcomeScreen,
     ...rest
   } = props;
+  const { executionChannel, voiceSessionStatus } = useAIOpsSession();
+  const voiceSurfaceActive = voiceSessionStatus !== "disconnected";
+
+  const filteredMessages = (messages ?? []).filter((message) => {
+    if (voiceSurfaceActive) {
+      return false;
+    }
+    if (isVoiceTranscriptMessageId(message.id)) {
+      return false;
+    }
+    if (executionChannel !== "voice") {
+      return true;
+    }
+    return message.role === "user";
+  });
 
   const messageViewObject =
     typeof messageView === "object" && messageView !== null ? messageView : undefined;
@@ -121,10 +165,11 @@ function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
   return (
     <CopilotChat.View
       {...rest}
+      messages={filteredMessages}
       className={["aiops-copilot-chat flex h-full min-h-0 flex-col", className]
         .filter(Boolean)
         .join(" ")}
-      welcomeScreen={welcomeScreen === false ? false : AIOpsChatWelcome}
+      welcomeScreen={voiceSurfaceActive ? false : welcomeScreen === false ? false : AIOpsChatWelcome}
       messageView={mergeObjectSlot(
         {
           className: "flex flex-col gap-3 px-0 py-2 text-sm",
@@ -136,10 +181,7 @@ function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
             toolbar:
               "mt-1.5 border-t border-slate-100/80 pt-1.5 text-slate-400 opacity-80 hover:opacity-100",
           },
-          userMessage: {
-            className: "!pt-2",
-            messageRenderer: userBubbleClass,
-          },
+          userMessage: VoiceAwareUserMessage as unknown as typeof CopilotChatUserMessage,
         },
         messageViewObject,
       )}
@@ -151,10 +193,17 @@ function AIOpsCopilotChatViewInner(props: CopilotChatViewProps) {
         },
         scrollViewObject,
       )}
-      input={mergeObjectSlot(aiopsCopilotChatInputConfig, inputObject)}
+      input={mergeObjectSlot(
+        aiopsCopilotChatInputConfig,
+        voiceSurfaceActive
+          ? {
+              className: "hidden pointer-events-none",
+            }
+          : inputObject,
+      )}
       suggestionView={mergeObjectSlot(
         {
-          className: "flex flex-wrap gap-2",
+          className: voiceSurfaceActive ? "hidden" : "flex flex-wrap gap-2",
         },
         suggestionViewObject,
       )}

@@ -55,7 +55,7 @@ export async function* streamAdkCoordinatorAsAgUiEvents(
   input: RunAgentInput,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<BaseEvent> {
-  const agent = createAIOpsCoordinatorAgent();
+  const agent = createAIOpsCoordinatorAgent("copilot");
   const runner = new InMemoryRunner({
     agent,
     appName: "aiops-prime-copilot",

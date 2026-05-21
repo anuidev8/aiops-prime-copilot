@@ -9,16 +9,15 @@ export default function DiapositivasPage() {
       <div className={styles.container}>
         <header>
           <div className={styles.topBar}>
-            <span className={styles.badge}>Presentacion AIOps Prime</span>
+            <span className={styles.badge}>Presentación AIOps Prime</span>
             <Link className={styles.topLink} href="/diapositivas/visual">
-              Ver version con imagenes
+              Ver versión visual interactiva
             </Link>
           </div>
 
-          <h1 className={styles.heading}>Diapositivas para sustentacion</h1>
+          <h1 className={styles.heading}>Diapositivas de la Presentación</h1>
           <p className={styles.subheading}>
-            Version minimalista en azul con foco en narrativa tecnica y notas de
-            exposicion.
+            Vista simplificada de los títulos. Para la experiencia completa, ve a la versión visual interactiva.
           </p>
         </header>
 
@@ -29,54 +28,6 @@ export default function DiapositivasPage() {
                 <span className={styles.slideNumber}>{slide.id}</span>
                 <h2 className={styles.slideTitle}>{slide.title}</h2>
               </header>
-
-              {slide.table ? (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        {slide.table.columns.map((column) => (
-                          <th key={column} scope="col">
-                            {column}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {slide.table.rows.map((row, rowIndex) => (
-                        <tr key={`${slide.id}-${rowIndex}`}>
-                          {row.map((cell, cellIndex) => (
-                            <td key={`${slide.id}-${rowIndex}-${cellIndex}`}>
-                              {cell}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-
-              {slide.bullets ? (
-                <ul className={styles.points}>
-                  {slide.bullets.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              ) : null}
-
-              {slide.decision ? (
-                <p className={styles.decision}>{slide.decision}</p>
-              ) : null}
-
-              {slide.closingLine ? (
-                <p className={styles.closing}>{slide.closingLine}</p>
-              ) : null}
-
-              <p className={styles.speakerNote}>
-                <strong>Nota para hablar:</strong> &quot;{slide.speakerNote}
-                &quot;
-              </p>
             </article>
           ))}
         </div>

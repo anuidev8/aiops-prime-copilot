@@ -100,17 +100,14 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
   const pipelineRunning = agentPipeline.some((step) => step.status === "running");
 
   return (
-    <div className="flex h-full min-h-0 max-h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-full min-h-0 max-h-full flex-col overflow-hidden bg-white">
       <div className="shrink-0 border-b border-slate-100 px-4 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-base font-semibold text-slate-900">Data Assistant</p>
-            <p className="text-xs text-slate-500">Powered by CopilotKit</p>
-          </div>
+        <div className="flex h-8 items-center justify-between">
+          <p className="text-sm font-semibold text-slate-900">Data Assistant</p>
           <button
             type="button"
             aria-label="Close panel"
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+            className="text-slate-400 transition-colors hover:text-slate-600"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18" />
@@ -119,7 +116,7 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
           </button>
         </div>
 
-        <div className="relative mt-3 flex w-full rounded-full border border-slate-200 bg-slate-50/90 p-1">
+        <div className="relative mt-3 flex w-full rounded-full border border-slate-200 bg-slate-50 p-1">
           {(["chat", "avatar"] as const).map((id) => {
             const active = activeTab === id;
             return (
@@ -135,7 +132,7 @@ export function CopilotAssistantPanel({ chat, viewMode }: CopilotAssistantPanelP
                 {active ? (
                   <motion.span
                     layoutId="copilot-tab-pill"
-                    className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 shadow-[0_4px_14px_-4px_rgba(79,70,229,0.55)]"
+                    className="absolute inset-0 rounded-full bg-indigo-600"
                     transition={pillTransition}
                   />
                 ) : null}

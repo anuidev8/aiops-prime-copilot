@@ -61,9 +61,22 @@ npm run dev                  # → http://localhost:3000/aiops
 
 | Comando | Uso |
 |---------|-----|
+| `npm run adk:web` | UI de depuración ADK → http://localhost:8000 (agente **agent** = `aiops_coordinator`) |
+| `npm run adk:run` | Chat por terminal con el mismo coordinador |
 | `npm run test` | Tests unitarios (Vitest) |
 | `npm run test:e2e` | E2E Playwright |
 | `npm run lint && npm run build` | Calidad + build producción |
+
+### ADK Web (depuración local)
+
+Misma lógica que el copilot (`aiops_coordinator` + workers), sin Next.js/CopilotKit. Requiere `.env.local` (o `.env`) con `GOOGLE_API_KEY` o Vertex + ADC — ver [ADK TypeScript quickstart](https://adk.dev/get-started/typescript/).
+
+```bash
+npm run adk:web    # http://localhost:8000 — en el selector elige **agent**
+npm run adk:run    # CLI interactivo
+```
+
+La app producto sigue siendo `npm run dev` → http://localhost:3000/aiops. Comprueba modo ADK vs fallback: `GET /api/aiops/runtime-status`.
 
 ### Variables de entorno (principales)
 
@@ -75,6 +88,8 @@ npm run dev                  # → http://localhost:3000/aiops
 | `ADK_MODEL` / `GEMINI_MODEL` | Modelo coordinador y workers ADK |
 | `COPILOTKIT_MODEL` | Fallback sin ADK |
 | `NEXT_PUBLIC_COPILOT_RUNTIME_URL` | Runtime Copilot (default `/api/copilotkit`) |
+| `NEXT_PUBLIC_GOOGLE_API_KEY` / `NEXT_PUBLIC_GEMINI_API_KEY` | Gemini Live voice bar (browser) |
+| `NEXT_PUBLIC_GEMINI_LIVE_MODEL` | Live model (default `models/gemini-3.1-flash-live-preview` for `@google/genai` 1.52) |
 
 Estado del runtime: `GET /api/aiops/runtime-status`
 

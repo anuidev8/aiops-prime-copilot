@@ -41,8 +41,11 @@ import {
   mergeCopilotAnalyzeResult,
 } from "@/shared/lib/copilot-dashboard-sync";
 import {
+  type DashboardHighlightKind,
   type DashboardHighlightSection,
   type DashboardHighlightState,
+  highlightDurationMs,
+  kindForCopilotTool,
   sectionsForCopilotTool,
 } from "@/shared/types/dashboard-highlight";
 import {
@@ -87,6 +90,20 @@ export interface AnalysisWorkflowState {
   source: "manual" | "copilot" | "system";
   detail: string;
   updatedAt: string;
+}
+
+export type VoiceSessionStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "thinking"
+  | "speaking"
+  | "unavailable";
+
+export type CopilotExecutionChannel = "chat" | "voice";
+
+export interface VoiceCopilotHandlers {
+  submitUtterance: (text: string) => Promise<string | null>;
 }
 
 function workflowStageFromAgent(agent: AnalysisAgentId): AnalysisWorkflowStage {
@@ -232,7 +249,9 @@ interface AIOpsSessionContextValue {
   isDashboardSectionHighlighted: (section: DashboardHighlightSection) => boolean;
   pulseDashboardSections: (
     sections: DashboardHighlightSection[],
+    kind?: DashboardHighlightKind,
     source?: DashboardHighlightState["source"],
+    durationMs?: number,
   ) => void;
   reportLayerOpen: boolean;
   setReportLayerOpen: (open: boolean) => void;
@@ -305,6 +324,14 @@ interface AIOpsSessionContextValue {
     source: AnalysisWorkflowState["source"],
     detail: string,
   ) => void;
+  executionChannel: CopilotExecutionChannel;
+  voiceRunActive: boolean;
+  setExecutionChannel: (channel: CopilotExecutionChannel) => void;
+  voiceSessionStatus: VoiceSessionStatus;
+  voiceCopilotReady: boolean;
+  setVoiceSessionStatus: (status: VoiceSessionStatus) => void;
+  registerVoiceCopilotHandlers: (handlers: VoiceCopilotHandlers | null) => void;
+  submitVoiceToCopilot: (text: string) => Promise<string | null>;
 }
 
 const AIOpsSessionContext = createContext<AIOpsSessionContextValue | null>(null);
@@ -391,6 +418,13 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
     updatedAt: new Date().toISOString(),
   });
   const [result, setResult] = useState<AnalyzeLogsResult | null>(null);
+  const [voiceSessionStatus, setVoiceSessionStatus] =
+    useState<VoiceSessionStatus>("disconnected");
+  const [executionChannel, setExecutionChannelState] =
+    useState<CopilotExecutionChannel>("chat");
+  const voiceRunActive = executionChannel === "voice";
+  const [voiceCopilotReady, setVoiceCopilotReady] = useState(false);
+  const voiceCopilotHandlersRef = useRef<VoiceCopilotHandlers | null>(null);
   const artifactCacheRef = useRef(artifactCache);
   useEffect(() => {
     artifactCacheRef.current = artifactCache;
@@ -402,7 +436,9 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
   const pulseDashboardSections = useCallback(
     (
       sections: DashboardHighlightSection[],
+      kind: DashboardHighlightKind = "default",
       source: DashboardHighlightState["source"] = "copilot",
+      durationMs?: number,
     ) => {
       if (sections.length === 0) return;
       if (highlightTimerRef.current) {
@@ -411,13 +447,14 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       setDashboardHighlight({
         revision: Date.now(),
         sections,
+        kind,
         triggeredAt: new Date().toISOString(),
         source,
       });
       highlightTimerRef.current = setTimeout(() => {
         setDashboardHighlight(null);
         highlightTimerRef.current = null;
-      }, 2600);
+      }, durationMs ?? highlightDurationMs(kind));
     },
     [],
   );
@@ -1019,7 +1056,10 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       });
     }
 
-    pulseDashboardSections(sectionsForCopilotTool("analyzeLogs"));
+    pulseDashboardSections(
+      sectionsForCopilotTool("analyzeLogs"),
+      kindForCopilotTool("analyzeLogs"),
+    );
   }, [
     generateReportCanvas,
     projectCatalog,
@@ -1076,7 +1116,10 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
         );
       }
 
-      pulseDashboardSections(sectionsForCopilotTool(toolName));
+      pulseDashboardSections(
+        sectionsForCopilotTool(toolName),
+        kindForCopilotTool(toolName),
+      );
 
       return true;
     },
@@ -1091,6 +1134,26 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       workflow,
     ],
   );
+
+  const registerVoiceCopilotHandlers = useCallback(
+    (handlers: VoiceCopilotHandlers | null) => {
+      voiceCopilotHandlersRef.current = handlers;
+      setVoiceCopilotReady(Boolean(handlers));
+    },
+    [],
+  );
+
+  const setExecutionChannel = useCallback((channel: CopilotExecutionChannel) => {
+    setExecutionChannelState(channel);
+  }, []);
+
+  const submitVoiceToCopilot = useCallback(async (text: string) => {
+    const handler = voiceCopilotHandlersRef.current?.submitUtterance;
+    if (!handler) {
+      return null;
+    }
+    return handler(text);
+  }, []);
 
   const portfolioHealth = useMemo(() => {
     const seen = new Set<string>();
@@ -1164,6 +1227,14 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       applyResultFromCopilot,
       applyIncrementalToolResult,
       setWorkflowStage,
+      executionChannel,
+      voiceRunActive,
+      setExecutionChannel,
+      voiceSessionStatus,
+      voiceCopilotReady,
+      setVoiceSessionStatus,
+      registerVoiceCopilotHandlers,
+      submitVoiceToCopilot,
     }),
     [
       artifactCache,
@@ -1208,11 +1279,18 @@ export function AIOpsSessionProvider({ children }: PropsWithChildren) {
       applyResultFromCopilot,
       applyIncrementalToolResult,
       setWorkflowStage,
+      executionChannel,
+      voiceRunActive,
+      setExecutionChannel,
       setDashboardFocus,
       generateReportCanvas,
       setReportCanvasMode,
       updateCanvasTextBlock,
       updateCanvasChartBlock,
+      voiceSessionStatus,
+      voiceCopilotReady,
+      registerVoiceCopilotHandlers,
+      submitVoiceToCopilot,
     ],
   );
 

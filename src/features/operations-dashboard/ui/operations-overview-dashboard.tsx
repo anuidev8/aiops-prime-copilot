@@ -13,6 +13,8 @@ import {
   MetricRowSkeleton,
 } from "@/features/operations-dashboard/ui/dashboard-animated-primitives";
 import { DashboardSectionShell } from "@/features/operations-dashboard/ui/dashboard-section-shell";
+import { workflowStageToHighlightKind } from "@/features/operations-dashboard/ui/dashboard-highlight-theme";
+import type { DashboardHighlightKind } from "@/shared/types/dashboard-highlight";
 import { GenerativeUiRenderer } from "@/features/operations-dashboard/ui/generative-ui-renderer";
 import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-session-context";
 import type { AnalyzeLogsResult, IncidentViewModel } from "@/shared/types/aiops";
@@ -62,6 +64,11 @@ export function OperationsOverviewDashboard() {
     isAnalyzing ||
     workflow.stage === "collecting_scope" ||
     workflow.stage === "reading_telemetry";
+
+  const accentKind: DashboardHighlightKind =
+    dashboardHighlight?.kind ??
+    workflowStageToHighlightKind(workflow.stage) ??
+    "default";
 
   const dashboardAnimateKey = `${dashboardHighlight?.revision ?? 0}-${artifactCache.lastRunMeta?.runId ?? "idle"}-${workspaceMetrics?.logLinesProcessed ?? 0}`;
 
@@ -136,7 +143,7 @@ export function OperationsOverviewDashboard() {
   const showPlaceholder = isAnalyzing && incidents.length === 0;
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-6 pb-8">
       {showPlaceholder ? (
         <DashboardAnalyzingPlaceholder
           title="Ingesting telemetry"
@@ -147,6 +154,7 @@ export function OperationsOverviewDashboard() {
       <DashboardSectionShell
         sectionId="kpis"
         highlighted={isDashboardSectionHighlighted("kpis")}
+        highlightKind={accentKind}
         loading={metricsPanelsLoading}
       >
         <KpiRow summary={summary} animateKey={dashboardAnimateKey} />
@@ -156,6 +164,7 @@ export function OperationsOverviewDashboard() {
         <DashboardSectionShell
           sectionId="generative-ui"
           highlighted={isDashboardSectionHighlighted("generative-ui")}
+          highlightKind={accentKind}
         >
           <GenerativeUiRenderer blocks={generativeBlocks} />
         </DashboardSectionShell>
@@ -164,14 +173,16 @@ export function OperationsOverviewDashboard() {
       <DashboardSectionShell
         sectionId="insights"
         highlighted={isDashboardSectionHighlighted("insights")}
+        highlightKind={accentKind}
       >
         <AnalysisInsightsPanel />
       </DashboardSectionShell>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <DashboardSectionShell
           sectionId="projects"
           highlighted={isDashboardSectionHighlighted("projects")}
+          highlightKind={accentKind}
           loading={metricsPanelsLoading}
         >
           <ProjectsTable summary={summary} animateKey={dashboardAnimateKey} />
@@ -179,6 +190,7 @@ export function OperationsOverviewDashboard() {
         <DashboardSectionShell
           sectionId="services"
           highlighted={isDashboardSectionHighlighted("services")}
+          highlightKind={accentKind}
           loading={metricsPanelsLoading}
         >
           <ServicesRelatedPanel
@@ -190,10 +202,11 @@ export function OperationsOverviewDashboard() {
         </DashboardSectionShell>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-6 xl:grid-cols-3">
         <DashboardSectionShell
           sectionId="metrics"
           highlighted={isDashboardSectionHighlighted("metrics")}
+          highlightKind={accentKind}
           loading={metricsPanelsLoading}
         >
           <MetricsPanel
@@ -205,6 +218,7 @@ export function OperationsOverviewDashboard() {
         <DashboardSectionShell
           sectionId="cost"
           highlighted={isDashboardSectionHighlighted("cost")}
+          highlightKind={accentKind}
           loading={metricsPanelsLoading}
         >
           <CostPanel
@@ -216,6 +230,7 @@ export function OperationsOverviewDashboard() {
         <DashboardSectionShell
           sectionId="service-status"
           highlighted={isDashboardSectionHighlighted("service-status")}
+          highlightKind={accentKind}
           loading={metricsPanelsLoading}
         >
           <ServiceStatusPanel summary={summary} animateKey={dashboardAnimateKey} />
@@ -223,19 +238,19 @@ export function OperationsOverviewDashboard() {
       </div>
 
       {summary.topRecommendation ? (
-        <section className="flex items-start justify-between gap-4 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-5">
+        <section className="flex items-start justify-between gap-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
           <div className="flex items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
               <LightbulbIcon className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-foreground">Top recommendation</h4>
-              <p className="mt-1 text-sm text-muted-foreground">{summary.topRecommendation}</p>
+              <h4 className="font-bold text-slate-900">Top recommendation</h4>
+              <p className="mt-1 text-sm text-slate-600">{summary.topRecommendation}</p>
             </div>
           </div>
           <button
             type="button"
-            className="shrink-0 rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-slate-50"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
           >
             View all recommendations <span className="ml-1">›</span>
           </button>
@@ -255,10 +270,20 @@ function KpiRow({
   return (
     <motion.div
       key={animateKey}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
     >
-      <KpiCard icon={FolderIcon} label="Total Projects" value={String(summary.totalProjects)} />
-      <KpiCard icon={BoxIcon} label="Total Services" value={String(summary.totalServices)} />
+      <KpiCard
+        icon={FolderIcon}
+        label="Total Projects"
+        value={String(summary.totalProjects)}
+        iconClass="bg-indigo-50 text-indigo-600"
+      />
+      <KpiCard
+        icon={BoxIcon}
+        label="Total Services"
+        value={String(summary.totalServices)}
+        iconClass="bg-purple-50 text-purple-600"
+      />
       <KpiCard
         icon={ClockIcon}
         label="MTTR"
@@ -269,7 +294,7 @@ function KpiRow({
             : { value: Math.abs(summary.mttrDeltaMinutes), up: summary.mttrDeltaMinutes > 0 }
         }
         footnote="vs last 60 min"
-        iconClass="bg-emerald-50 text-emerald-500"
+        iconClass="bg-emerald-50 text-emerald-600"
         trendPositive={summary.mttrDeltaMinutes !== null && summary.mttrDeltaMinutes < 0}
       />
       <KpiCard
@@ -282,8 +307,7 @@ function KpiRow({
             : { value: summary.activeIncidentsDelta, up: true }
         }
         footnote="vs last 60 min"
-        iconClass="bg-amber-100/50 text-amber-600"
-        cardClass="border-amber-200/50 bg-amber-50/10"
+        iconClass="bg-orange-50 text-orange-600"
         trendPositive={false}
       />
       <KpiCard
@@ -291,7 +315,7 @@ function KpiRow({
         label="Anomalies Detected"
         value={String(summary.anomaliesDetected)}
         footnote="vs last 60 min"
-        iconClass="bg-rose-50 text-rose-500"
+        iconClass="bg-red-50 text-red-600 border border-red-100"
       />
     </motion.div>
   );
@@ -303,7 +327,7 @@ function KpiCard({
   value,
   trend,
   footnote,
-  iconClass = "bg-indigo-50 text-indigo-500",
+  iconClass = "bg-indigo-50 text-indigo-600",
   cardClass = "",
   trendPositive,
 }: {
@@ -317,34 +341,39 @@ function KpiCard({
   trendPositive?: boolean;
 }) {
   return (
-    <div className={["flex flex-col rounded-2xl border border-border bg-white p-4", cardClass].join(" ")}>
-      <div className="flex items-start gap-3">
-        <div className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass].join(" ")}>
+    <div
+      className={[
+        "relative flex flex-col gap-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm",
+        cardClass,
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-3">
+        <div className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", iconClass].join(" ")}>
           <Icon className="h-5 w-5" />
         </div>
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <div className="mt-1 flex items-baseline gap-2">
-            <p className="font-display text-2xl font-semibold text-foreground">{value}</p>
-            {trend ? (
-              <div
-                className={[
-                  "flex items-center text-[11px] font-medium",
-                  trendPositive ? "text-emerald-600" : "text-rose-500",
-                ].join(" ")}
-              >
-                {trend.up ? (
-                  <ArrowUpIcon className="mr-0.5 h-3 w-3" />
-                ) : (
-                  <ArrowDownIcon className="mr-0.5 h-3 w-3" />
-                )}
-                {trend.value}
-                {label === "MTTR" ? "m" : ""}
-              </div>
-            ) : null}
-          </div>
-          {footnote ? <p className="mt-0.5 text-[10px] text-muted-foreground">{footnote}</p> : null}
+        <h3 className="text-sm font-medium text-slate-500">{label}</h3>
+      </div>
+      <div>
+        <div className="flex items-baseline gap-2">
+          <p className="text-3xl font-bold text-slate-900">{value}</p>
+          {trend ? (
+            <span
+              className={[
+                "flex items-center text-sm font-medium",
+                trendPositive ? "text-emerald-600" : "text-red-500",
+              ].join(" ")}
+            >
+              {trend.up ? (
+                <ArrowUpIcon className="mr-0.5 h-3.5 w-3.5" />
+              ) : (
+                <ArrowDownIcon className="mr-0.5 h-3.5 w-3.5" />
+              )}
+              {trend.value}
+              {label === "MTTR" ? "m" : ""}
+            </span>
+          ) : null}
         </div>
+        {footnote ? <p className="mt-1 text-xs text-slate-400">{footnote}</p> : null}
       </div>
     </div>
   );
@@ -367,27 +396,27 @@ function ProjectsTable({
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-border text-[11px] font-medium text-muted-foreground">
-                <th className="px-2 py-2">Project</th>
-                <th className="px-2 py-2">Services</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Health</th>
+              <tr className="text-left text-slate-500">
+                <th className="pb-3 font-medium">Project</th>
+                <th className="pb-3 font-medium">Services</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">Health</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50">
               {rows.map((row) => (
-                <tr key={row.projectId} className="border-b border-border/40 text-[13px]">
-                  <td className="flex items-center gap-2 px-2 py-3 font-medium text-foreground">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-indigo-50 text-indigo-500">
-                      <FolderIcon className="h-3 w-3" />
+                <tr key={row.projectId} className="text-sm transition-colors hover:bg-slate-50">
+                  <td className="flex items-center gap-3 py-3 font-semibold text-slate-900">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-600">
+                      <FolderIcon className="h-4 w-4" />
                     </div>
                     {row.name}
                   </td>
-                  <td className="px-2 py-3 text-muted-foreground">{row.serviceCount}</td>
-                  <td className="px-2 py-3">
+                  <td className="py-3 text-slate-600">{row.serviceCount}</td>
+                  <td className="py-3">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="py-3">
                     <AnimatedHealthBar
                       percent={row.healthPercent}
                       status={row.status}
@@ -459,25 +488,25 @@ function ServicesRelatedPanel({
         >
           <table className="min-w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-border text-[11px] font-medium text-muted-foreground">
-                <th className="px-2 py-2">Service</th>
-                <th className="px-2 py-2">Project</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Health</th>
+              <tr className="text-left text-slate-500">
+                <th className="pb-3 font-medium">Service</th>
+                <th className="pb-3 font-medium">Project</th>
+                <th className="pb-3 font-medium">Status</th>
+                <th className="pb-3 font-medium">Health</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50">
               {rows.map((row) => (
                 <tr
                   key={`${row.projectName}-${row.serviceName}`}
-                  className="border-b border-border/40 text-[13px]"
+                  className="text-sm transition-colors hover:bg-slate-50"
                 >
-                  <td className="px-2 py-3 font-medium text-foreground">{row.serviceName}</td>
-                  <td className="px-2 py-3 text-muted-foreground">{row.projectName}</td>
-                  <td className="px-2 py-3">
+                  <td className="py-3 font-semibold text-slate-900">{row.serviceName}</td>
+                  <td className="py-3 text-slate-500">{row.projectName}</td>
+                  <td className="py-3">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="py-3">
                     <AnimatedHealthBar
                       percent={row.healthPercent}
                       status={row.status}
@@ -619,13 +648,19 @@ function StatusPill({ status }: { status: string }) {
     status === "Healthy"
       ? "bg-emerald-500"
       : status === "Degraded"
-        ? "bg-amber-500"
-        : "bg-rose-500";
+        ? "bg-orange-500"
+        : "bg-red-500";
+  const text =
+    status === "Healthy"
+      ? "text-emerald-600"
+      : status === "Degraded"
+        ? "text-orange-600"
+        : "text-red-600";
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      <span className="text-xs font-medium text-muted-foreground">{status}</span>
+      <div className={`h-2 w-2 rounded-full ${dot}`} />
+      <span className={`text-sm font-medium ${text}`}>{status}</span>
     </div>
   );
 }

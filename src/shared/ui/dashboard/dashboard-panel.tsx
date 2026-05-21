@@ -13,14 +13,17 @@ export function DashboardPanel({
   children,
 }: DashboardPanelProps) {
   return (
-    <section className={["rounded-3xl border border-border bg-white p-4 sm:p-5", className ?? ""].join(" ")}>
-      <header className="mb-3">
-        <h3 className="font-display text-sm font-semibold text-foreground sm:text-base">{title}</h3>
-        {subtitle ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground sm:text-xs">{subtitle}</p>
-        ) : null}
+    <section
+      className={[
+        "flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm",
+        className ?? "",
+      ].join(" ")}
+    >
+      <header className="border-b border-slate-100 p-5 pb-4">
+        <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+        {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
       </header>
-      {children}
+      <div className="p-5">{children}</div>
     </section>
   );
 }

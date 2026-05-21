@@ -23,8 +23,8 @@ export function KpiCard({
   return (
     <article
       className={[
-        "relative overflow-hidden rounded-2xl border bg-white p-4",
-        accent ? "border-primary/30 shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.55)]" : "border-border",
+        "relative overflow-hidden rounded-xl border bg-white p-5 shadow-sm",
+        accent ? "border-indigo-200" : "border-slate-200",
       ].join(" ")}
     >
       {accent ? (
@@ -34,11 +34,9 @@ export function KpiCard({
         />
       ) : null}
       <div className="relative">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-sm font-medium text-slate-500">{label}</p>
         <div className="mt-2 flex items-end justify-between gap-2">
-          <p className="font-display text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+          <p className="text-3xl font-bold text-slate-900">{value}</p>
           {trend !== undefined ? (
             <div
               className={[

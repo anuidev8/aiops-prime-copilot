@@ -20,10 +20,18 @@ function shouldShowPipeline(
 }
 
 export function useSyncAdkPipelineChatActivity(agent: AbstractAgent): void {
-  const { agentPipeline, incidentProgress, isAnalyzing } = useAIOpsSession();
+  const { agentPipeline, executionChannel, incidentProgress, isAnalyzing } = useAIOpsSession();
   const visibleRef = useRef(false);
 
   useEffect(() => {
+    if (executionChannel === "voice") {
+      visibleRef.current = false;
+      agent.setMessages(
+        agent.messages.filter((message) => message.id !== AIOPS_ADK_PIPELINE_CHAT_MESSAGE_ID),
+      );
+      return;
+    }
+
     const visible = shouldShowPipeline(isAnalyzing, agentPipeline);
 
     if (!visible) {
@@ -58,5 +66,5 @@ export function useSyncAdkPipelineChatActivity(agent: AbstractAgent): void {
     );
 
     agent.setMessages([...withoutPipeline, activityMessage]);
-  }, [agent, agentPipeline, incidentProgress, isAnalyzing]);
+  }, [agent, agentPipeline, executionChannel, incidentProgress, isAnalyzing]);
 }

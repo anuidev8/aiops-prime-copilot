@@ -28,7 +28,7 @@ export function SystemStatusPanel() {
 
   const rows = [
     {
-      label: "ADK",
+      label: "ADX",
       ready: status?.adk.ready ?? false,
       detail: status?.adk.backend ?? "Unavailable",
     },
@@ -44,24 +44,27 @@ export function SystemStatusPanel() {
     },
   ];
 
+  const allOperational = rows.every((row) => row.ready);
+
   return (
-    <div className="rounded-2xl border border-border bg-card/90 p-3 text-xs shadow-[0_12px_32px_-24px_hsl(225_30%_30%/0.5)]">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        System Status
-      </p>
-      <div className="space-y-2.5">
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+      <div>
+        <h4 className="mb-1 text-xs font-semibold text-slate-900">System Status</h4>
+        <p className={`text-xs font-medium ${allOperational ? "text-green-600" : "text-slate-500"}`}>
+          {allOperational ? "All systems operational" : "Checking connections"}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 text-xs">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-foreground">{row.label}</p>
-              <p className="truncate text-[10px] text-muted-foreground">{row.detail}</p>
-            </div>
+            <span className="text-slate-600">{row.label}</span>
             <span
               className={[
-                "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                "rounded-full px-2 py-0.5 font-medium",
                 row.ready
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-slate-100 text-slate-500",
+                  ? "bg-green-50 text-green-600"
+                  : "bg-slate-100 text-slate-500",
               ].join(" ")}
             >
               {row.ready ? "Connected" : "Pending"}

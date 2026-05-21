@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: 228 45% 98%;
-  --foreground: 228 28% 18%;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
 
   --card: 0 0% 100%;
   --card-foreground: 228 28% 18%;
@@ -17,8 +17,8 @@
   --secondary: 230 34% 96%;
   --secondary-foreground: 229 23% 26%;
 
-  --muted: 228 35% 95%;
-  --muted-foreground: 226 15% 46%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
 
   --accent: 248 82% 61%;
   --accent-foreground: 0 0% 100%;
@@ -29,8 +29,8 @@
   --warning: 34 93% 53%;
   --success: 146 58% 42%;
 
-  --border: 226 26% 88%;
-  --input: 228 30% 92%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
   --ring: 248 82% 61%;
 
   --radius: 1rem;
@@ -42,10 +42,7 @@
 
   --glass-border: 226 36% 84%;
 
-  --gradient-bg:
-    radial-gradient(900px 420px at 12% -12%, hsl(248 84% 85% / 0.4), transparent 70%),
-    radial-gradient(880px 380px at 95% -10%, hsl(202 90% 84% / 0.34), transparent 68%),
-    linear-gradient(180deg, hsl(228 58% 99%), hsl(228 42% 97%));
+  --gradient-bg: #f8fafc;
   --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
   --gradient-card: linear-gradient(160deg, hsl(0 0% 100% / 0.9), hsl(230 48% 99% / 0.9));
 
@@ -96,9 +93,8 @@ body {
 
 body {
   color: hsl(var(--foreground));
-  font-family: var(--font-display-sans), var(--font-body-sans), "Segoe UI", sans-serif;
-  background: var(--gradient-bg);
-  background-attachment: fixed;
+  font-family: var(--font-body-sans), var(--font-display-sans), "Inter", "Segoe UI", sans-serif;
+  background-color: var(--gradient-bg);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
 }
@@ -135,7 +131,8 @@ body {
   );
 }
 
-.copilot-avatar-figure {
+.copilot-avatar-figure,
+video.copilot-avatar-figure {
   object-fit: contain;
   object-position: bottom center;
   filter: drop-shadow(0 0 24px hsl(var(--primary) / 0.3));

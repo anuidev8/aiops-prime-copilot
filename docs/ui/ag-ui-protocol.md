@@ -158,8 +158,8 @@ Registered on:
 ### Browser-only tool (with ADK awareness)
 
 1. `useFrontendTool` in `aiops-copilot.tsx`.
-2. Matching `createFrontendBridgeTool` in `aiops-coordinator-tools.ts`.
-3. Add name to `COPILOT_FRONTEND_BRIDGE_TOOL_NAMES`.
+2. Matching passthrough tool in `copilot-frontend-tool-bridge.ts` (copilot profile only).
+3. Add name to `COPILOT_FRONTEND_TOOL_NAMES` in that file.
 4. Document in `aiops-coordinator-prompt.ts`.
 
 Optional: extend `toolToPipelineAgent` in the mapper for `STATE_SNAPSHOT` labels (backend tools only).

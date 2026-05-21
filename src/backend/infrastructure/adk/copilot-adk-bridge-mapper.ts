@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { EventType as AdkEventType, type StructuredEvent } from "@google/adk";
 import { EventType, type BaseEvent } from "@ag-ui/client";
+import { COPILOT_FRONTEND_TOOL_NAMES } from "./copilot-frontend-tool-bridge";
 
 export const COPILOT_BACKEND_TOOL_NAMES = new Set([
   "listProjectOwnership",
@@ -10,21 +11,9 @@ export const COPILOT_BACKEND_TOOL_NAMES = new Set([
   "analyzeLogs",
 ]);
 
-export const COPILOT_FRONTEND_BRIDGE_TOOL_NAMES = new Set([
-  "setDashboardFocus",
-  "openReportCanvas",
-  "downloadReportPdf",
-  "selectReportSection",
-  "startReportSectionEdit",
-  "updateReportSection",
-  "setReportSectionReviewStatus",
-  "suggestReportSectionEdits",
-  "confirmRejectReportSection",
-  "rewriteSelectedCanvasText",
-  "suggestSelectedCanvasChartKpi",
-  "showRecommendationCard",
-  "renderAnalysisSummary",
-]);
+export const COPILOT_FRONTEND_BRIDGE_TOOL_NAMES = new Set<string>(
+  COPILOT_FRONTEND_TOOL_NAMES,
+);
 
 /** ADK-internal tools (e.g. transfer_to_agent) must not emit AG-UI tool events. */
 export function isCopilotTool(toolName: string): boolean {

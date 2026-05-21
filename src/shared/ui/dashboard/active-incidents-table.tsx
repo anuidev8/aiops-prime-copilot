@@ -37,25 +37,25 @@ export function ActiveIncidentsTable({
   const reducedMotion = Boolean(useReducedMotion());
   if (incidents.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border bg-secondary/40 p-6 text-center text-sm text-muted-foreground">
+      <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
         No active incidents for the selected scope. Run analysis on a project to populate telemetry.
       </p>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-white">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full text-sm">
-        <thead className="bg-secondary text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 text-left font-medium">Service</th>
-            <th className="px-3 py-2 text-left font-medium">Severity</th>
-            <th className="px-3 py-2 text-left font-medium">Duration</th>
-            <th className="px-3 py-2 text-left font-medium">Status</th>
-            <th className="px-3 py-2 text-left font-medium">Trend</th>
+        <thead>
+          <tr className="text-left text-slate-500">
+            <th className="pb-3 font-medium">Service</th>
+            <th className="pb-3 font-medium">Severity</th>
+            <th className="pb-3 font-medium">Duration</th>
+            <th className="pb-3 font-medium">Status</th>
+            <th className="pb-3 font-medium">Trend</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-50">
           {incidents.map((incident, index) => (
             <motion.tr
               key={animateKey ? `${animateKey}-${incident.id}` : incident.id}
@@ -68,8 +68,8 @@ export function ActiveIncidentsTable({
                 ease: [0.22, 1, 0.36, 1],
               }}
               className={[
-                "border-t border-border/70 transition-colors",
-                onSelect ? "cursor-pointer hover:bg-secondary/40" : "",
+                "transition-colors",
+                onSelect ? "cursor-pointer hover:bg-slate-50" : "",
               ].join(" ")}
             >
               <td className="px-3 py-2.5">

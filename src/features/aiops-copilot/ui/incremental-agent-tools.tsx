@@ -8,7 +8,12 @@ import {
   AnalysisWorkflowStage,
   useAIOpsSession,
 } from "@/processes/aiops-analysis-session/model/aiops-session-context";
+import { CHAT_COPILOT_AGENT_ID } from "@/shared/constants/copilot-agent-ids";
 import { copilotToolToAgentId } from "@/shared/types/analysis-progress";
+import {
+  kindForCopilotTool,
+  sectionsForCopilotTool,
+} from "@/shared/types/dashboard-highlight";
 import {
   normalizeCopilotToolPayload,
   parseAgentToolResult,
@@ -41,6 +46,7 @@ interface IncrementalToolCardProps {
   label: string;
   status: string;
   result: unknown;
+  suppressUi?: boolean;
   onApplyResult: (result: AnalyzeLogsResult) => void;
   onApplyIncremental: (toolName: AIOpsAgentToolId, result: unknown) => boolean;
   onWorkflowUpdate: (
@@ -122,11 +128,16 @@ function IncrementalToolCard({
   label,
   status,
   result,
+  suppressUi = false,
   onApplyResult,
   onApplyIncremental,
   onWorkflowUpdate,
 }: IncrementalToolCardProps) {
-  const { generateReportCanvas, applyCopilotAgentProgress } = useAIOpsSession();
+  const {
+    generateReportCanvas,
+    applyCopilotAgentProgress,
+    pulseDashboardSections,
+  } = useAIOpsSession();
   const prevStatusRef = useRef<string | undefined>(undefined);
   const pipelineAgent = copilotToolToAgentId(toolName);
 
@@ -216,6 +227,20 @@ function IncrementalToolCard({
       if (pipelineAgent) {
         applyCopilotAgentProgress(pipelineAgent, "running", `Copilot dispatched ${label}.`);
       }
+      const runDurationMs =
+        toolName === "runAnalystAgent"
+          ? 14_000
+          : toolName === "runTelemetryAgent"
+            ? 10_000
+            : toolName === "analyzeLogs"
+              ? 16_000
+              : 9_000;
+      pulseDashboardSections(
+        sectionsForCopilotTool(toolName),
+        kindForCopilotTool(toolName),
+        "copilot",
+        runDurationMs,
+      );
     }
   }, [
     toolName,
@@ -227,8 +252,13 @@ function IncrementalToolCard({
     onWorkflowUpdate,
     generateReportCanvas,
     applyCopilotAgentProgress,
+    pulseDashboardSections,
     pipelineAgent,
   ]);
+
+  if (suppressUi) {
+    return null;
+  }
 
   return <IncrementalToolStatus label={label} status={status} toolName={toolName} />;
 }
@@ -243,7 +273,41 @@ export function useIncrementalAgentCopilotTools({
   onApplyIncremental: (toolName: AIOpsAgentToolId, result: unknown) => boolean;
   onWorkflowUpdate: IncrementalToolCardProps["onWorkflowUpdate"];
 }) {
-  const { artifactCache, projectCatalog, selectedScope } = useAIOpsSession();
+  const { artifactCache, executionChannel, projectCatalog, selectedScope } = useAIOpsSession();
+  const voiceAutoResponsesRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (executionChannel !== "voice") {
+      voiceAutoResponsesRef.current.clear();
+    }
+  }, [executionChannel]);
+
+  const maybeAutoRespondInVoice = ({
+    key,
+    status,
+    respond,
+    payload,
+  }: {
+    key: string;
+    status: string;
+    respond?: (value: Record<string, unknown>) => void | Promise<void>;
+    payload: Record<string, unknown>;
+  }): boolean => {
+    if (executionChannel !== "voice" || status !== "executing" || !respond) {
+      return false;
+    }
+
+    const responseKey = `${key}:${JSON.stringify(payload)}`;
+    if (voiceAutoResponsesRef.current.has(responseKey)) {
+      return true;
+    }
+
+    voiceAutoResponsesRef.current.add(responseKey);
+    queueMicrotask(() => {
+      void respond(payload);
+    });
+    return true;
+  };
 
   useCopilotChatSuggestions(
     {
@@ -306,6 +370,19 @@ export function useIncrementalAgentCopilotTools({
     parameters: z.object({ incidentCount: z.number().optional() }),
     render: ({ status, args, respond }) => {
       const count = args.incidentCount ?? artifactCache.incidents.length;
+      if (
+        maybeAutoRespondInVoice({
+          key: `confirmRunAnalyst:${count}`,
+          status,
+          respond,
+          payload: { confirmed: true },
+        })
+      ) {
+        return null;
+      }
+      if (executionChannel === "voice") {
+        return null;
+      }
 
       if (status !== "executing") {
         return (
@@ -348,6 +425,22 @@ export function useIncrementalAgentCopilotTools({
     parameters: z.object({ allowEmptyReport: z.boolean().optional() }),
     render: ({ status, args, respond }) => {
       const empty = artifactCache.incidents.length === 0;
+      if (
+        maybeAutoRespondInVoice({
+          key: `confirmRunReporter:${empty ? "empty" : "filled"}`,
+          status,
+          respond,
+          payload: {
+            confirmed: true,
+            allowEmptyReport: empty || Boolean(args.allowEmptyReport),
+          },
+        })
+      ) {
+        return null;
+      }
+      if (executionChannel === "voice") {
+        return null;
+      }
 
       if (status !== "executing") {
         return (
@@ -387,6 +480,7 @@ export function useIncrementalAgentCopilotTools({
   });
 
   useRenderTool({
+    agentId: CHAT_COPILOT_AGENT_ID,
     name: "runTelemetryAgent",
     parameters: z.object({}),
     render: (props) => (
@@ -394,6 +488,7 @@ export function useIncrementalAgentCopilotTools({
         toolName="runTelemetryAgent"
         label="Telemetry agent"
         {...props}
+        suppressUi={executionChannel === "voice"}
         onApplyResult={onApplyResult}
         onApplyIncremental={onApplyIncremental}
         onWorkflowUpdate={onWorkflowUpdate}
@@ -402,6 +497,7 @@ export function useIncrementalAgentCopilotTools({
   });
 
   useRenderTool({
+    agentId: CHAT_COPILOT_AGENT_ID,
     name: "runAnalystAgent",
     parameters: z.object({}),
     render: (props) => (
@@ -409,6 +505,7 @@ export function useIncrementalAgentCopilotTools({
         toolName="runAnalystAgent"
         label="Analyst agent"
         {...props}
+        suppressUi={executionChannel === "voice"}
         onApplyResult={onApplyResult}
         onApplyIncremental={onApplyIncremental}
         onWorkflowUpdate={onWorkflowUpdate}
@@ -417,6 +514,7 @@ export function useIncrementalAgentCopilotTools({
   });
 
   useRenderTool({
+    agentId: CHAT_COPILOT_AGENT_ID,
     name: "runReporterAgent",
     parameters: z.object({}),
     render: (props) => (
@@ -424,6 +522,7 @@ export function useIncrementalAgentCopilotTools({
         toolName="runReporterAgent"
         label="PRIME reporter"
         {...props}
+        suppressUi={executionChannel === "voice"}
         onApplyResult={onApplyResult}
         onApplyIncremental={onApplyIncremental}
         onWorkflowUpdate={onWorkflowUpdate}
@@ -432,6 +531,7 @@ export function useIncrementalAgentCopilotTools({
   });
 
   useRenderTool({
+    agentId: CHAT_COPILOT_AGENT_ID,
     name: "analyzeLogs",
     parameters: z.object({}),
     render: (props) => (
@@ -439,6 +539,7 @@ export function useIncrementalAgentCopilotTools({
         toolName="analyzeLogs"
         label="Full ADK pipeline"
         {...props}
+        suppressUi={executionChannel === "voice"}
         onApplyResult={onApplyResult}
         onApplyIncremental={onApplyIncremental}
         onWorkflowUpdate={onWorkflowUpdate}

@@ -12,10 +12,9 @@ import { useAIOpsSession } from "@/processes/aiops-analysis-session/model/aiops-
 import { AppNavId, AppSidebar } from "@/shared/ui/layout/app-sidebar";
 import { AppTopBar } from "@/shared/ui/layout/app-top-bar";
 import {
-  ViewModeToggle,
   WorkspaceViewMode,
 } from "@/shared/ui/layout/view-mode-toggle";
-import { VoiceCommandBar } from "@/shared/ui/dashboard/voice-command-bar";
+import { VoiceCommandBarSlot } from "@/features/voice-live/ui/voice-command-bar-slot";
 
 interface AIOpsWorkspaceLayoutProps {
   copilot: ReactNode;
@@ -50,7 +49,7 @@ function stageBadge(workflowStage: string): { label: string; className: string }
 
 export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
   const reducedMotion = Boolean(useReducedMotion());
-  const [viewMode, setViewMode] = useState<WorkspaceViewMode>("split");
+  const [viewMode] = useState<WorkspaceViewMode>("split");
   const [navId, setNavId] = useState<AppNavId>("overview");
   const {
     workflow,
@@ -71,6 +70,7 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
   const showFullChat = effectiveViewMode === "chat";
   const showDockedCopilot = effectiveViewMode !== "chat";
   const reportFocusMode = reportLayerOpen && !showFullChat;
+  const showVoiceCommandBar = !showFullChat && (navId === "overview" || reportFocusMode);
   const workflowBadge = stageBadge(workflow.stage);
 
   const dashboardEnter = reducedMotion
@@ -103,31 +103,17 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
 
   const dockedEnter = reducedMotion
     ? {
-        initial: { opacity: 1, width: "min(420px, 38%)" },
-        animate: { opacity: 1, width: "min(420px, 38%)" },
-        exit: { opacity: 1, width: "min(420px, 38%)" },
+        initial: { opacity: 1, width: 320 },
+        animate: { opacity: 1, width: 320 },
+        exit: { opacity: 1, width: 320 },
         transition: { duration: 0 },
       }
     : {
         initial: { opacity: 0, width: 0 },
-        animate: { opacity: 1, width: "min(420px, 38%)" },
+        animate: { opacity: 1, width: 320 },
         exit: { opacity: 0, width: 0 },
         transition: { duration: 0.4, ease: easeOut },
       };
-
-  function handleToggleReportLayer() {
-    if (!reportLayerOpen && !reportCanvas && !reportCanvasGenerating) {
-      void generateReportCanvas();
-      return;
-    }
-    if (reportCanvasGenerating && reportLayerOpen) {
-      return;
-    }
-    if (!reportLayerOpen) {
-      setReportCanvasMode("present");
-    }
-    setReportLayerOpen(!reportLayerOpen);
-  }
 
   function renderCenterContent() {
     if (navId === "projects") return <ProjectCatalog />;
@@ -157,23 +143,23 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <AppTopBar reportFocusMode={reportFocusMode} />
 
-        <div className="grid-bg flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-5 pt-4 sm:px-6">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
-            <section className="glass-strong flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border/80">
-              <header className="shrink-0 border-b border-border/70 px-4 py-4 sm:px-6">
+            <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-r border-slate-200 bg-white">
+              <header className="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
+                    <h1 className="text-2xl font-bold text-slate-900">
                       {reportFocusMode ? "Report Agent" : "Analysis Agent"}
                       {reportFocusMode ? (
-                        <span className="ml-3 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 align-middle text-xs font-semibold text-indigo-700">
+                        <span className="ml-3 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 align-middle text-xs font-medium text-indigo-600">
                           Draft in progress
                         </span>
                       ) : null}
                       {!reportFocusMode ? (
                         <span
                           className={[
-                            "ml-3 inline-flex rounded-full border px-2.5 py-1 align-middle text-xs font-semibold",
+                            "ml-3 inline-flex rounded-full border px-2.5 py-1 align-middle text-xs font-medium",
                             workflowBadge.className,
                           ].join(" ")}
                         >
@@ -181,13 +167,13 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
                         </span>
                       ) : null}
                     </h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1 text-sm text-slate-500">
                       {reportFocusMode
                         ? "AI is building your report. Review, edit and approve each section."
                         : "Deep analysis, correlation, and insights from your operational data."}
                     </p>
                     {!reportFocusMode ? (
-                      <h2 className="mt-1 text-[11px] font-medium text-muted-foreground">
+                      <h2 className="mt-1 text-xs font-medium text-slate-400">
                         Operations workspace
                       </h2>
                     ) : null}
@@ -198,28 +184,28 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
                       <>
                         <button
                           type="button"
-                          className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-slate-50 flex items-center gap-1.5"
+                          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                           Analysis settings
                         </button>
                         <button
                           type="button"
-                          className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-slate-50 flex items-center gap-1.5"
+                          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
                           Version history
                         </button>
-                        <div className="flex rounded-lg overflow-hidden border border-indigo-600">
+                        <div className="flex overflow-hidden rounded-lg shadow-sm">
                           <button
                             type="button"
-                            className="bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 border-r border-indigo-700"
+                            className="border-r border-indigo-500 bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
                           >
                             Export
                           </button>
                           <button
                             type="button"
-                            className="bg-indigo-600 px-2 py-1.5 text-white transition-colors hover:bg-indigo-700 flex items-center justify-center"
+                            className="flex items-center justify-center bg-indigo-700 px-2 py-2 text-white transition-colors hover:bg-indigo-800"
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                           </button>
@@ -228,7 +214,7 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
                     ) : (
                       <button
                         type="button"
-                        className="rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
                         onClick={() => setReportLayerOpen(false)}
                       >
                         Exit report mode
@@ -239,44 +225,49 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
 
               </header>
 
-              <div className="relative flex min-h-0 flex-1 gap-0 overflow-hidden p-3 sm:p-4">
-                {reportFocusMode ? (
-                  <motion.div
-                    className="custom-scrollbar flex-1 overflow-y-auto pb-3 pr-0 lg:pr-2"
-                    initial={false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: reducedMotion ? 0 : 0.2, ease: easeOut }}
-                  >
-                    <ReportCanvas />
-                  </motion.div>
-                ) : (
-                  <AnimatePresence mode="wait" initial={false}>
-                    {showDashboard && !showFullChat ? (
+              <div className="relative flex min-h-0 flex-1 gap-0 overflow-hidden bg-slate-50 p-4 sm:p-6">
+                <div className="flex min-h-0 flex-1 flex-col gap-4">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    {reportFocusMode ? (
                       <motion.div
-                        key={`analysis-main-${navId}`}
-                        className="custom-scrollbar flex-1 overflow-y-auto pb-3 pr-0 lg:pr-2"
-                        {...dashboardEnter}
+                        className="custom-scrollbar h-full overflow-y-auto pb-3 pr-0 lg:pr-2"
+                        initial={false}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: reducedMotion ? 0 : 0.2, ease: easeOut }}
                       >
-                        {renderCenterContent()}
-                        {navId === "overview" ? (
-                          <div className="mt-6 hidden lg:block">
-                            <VoiceCommandBar />
-                          </div>
+                        <ReportCanvas />
+                      </motion.div>
+                    ) : (
+                      <AnimatePresence mode="wait" initial={false}>
+                        {showDashboard && !showFullChat ? (
+                          <motion.div
+                            key={`analysis-main-${navId}`}
+                            className="custom-scrollbar flex h-full flex-col gap-6 overflow-y-auto pb-3 pr-0 lg:pr-2"
+                            {...dashboardEnter}
+                          >
+                            {renderCenterContent()}
+                          </motion.div>
                         ) : null}
-                      </motion.div>
-                    ) : null}
 
-                    {showFullChat ? (
-                      <motion.div
-                        key="chat-full"
-                        className="flex flex-1 overflow-hidden p-2 lg:p-3"
-                        {...chatEnter}
-                      >
-                        <CopilotAssistantPanel chat={copilot} viewMode="chat" />
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                )}
+                        {showFullChat ? (
+                          <motion.div
+                            key="chat-full"
+                            className="flex flex-1 overflow-hidden p-2 lg:p-3"
+                            {...chatEnter}
+                          >
+                            <CopilotAssistantPanel chat={copilot} viewMode="chat" />
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    )}
+                  </div>
+
+                  {showVoiceCommandBar ? (
+                    <div className="hidden shrink-0 lg:block">
+                      <VoiceCommandBarSlot />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </section>
 
@@ -284,12 +275,10 @@ export function AIOpsWorkspaceLayout({ copilot }: AIOpsWorkspaceLayoutProps) {
               {showDockedCopilot && !showFullChat ? (
                 <motion.aside
                   key="copilot-docked"
-                  className="hidden h-full shrink-0 overflow-hidden pl-3 lg:block"
+                  className="hidden h-full w-80 shrink-0 overflow-hidden border-l border-slate-200 bg-white lg:block"
                   {...dockedEnter}
                 >
-                  <div className="h-full min-h-0 min-w-[360px] w-[min(420px,38vw)]">
-                    <CopilotAssistantPanel chat={copilot} viewMode={effectiveViewMode} />
-                  </div>
+                  <CopilotAssistantPanel chat={copilot} viewMode={effectiveViewMode} />
                 </motion.aside>
               ) : null}
             </AnimatePresence>

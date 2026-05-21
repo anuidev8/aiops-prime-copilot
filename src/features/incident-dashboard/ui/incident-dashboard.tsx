@@ -105,9 +105,9 @@ export function IncidentDashboard() {
         <MetricCard label="Avg duration" value={`${averageDuration}m`} tone="emerald" />
       </div>
 
-      <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-secondary/45 px-4 py-2.5">
-        <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-        <p className="text-xs font-mono text-muted-foreground">
+      <div className="mb-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
+        <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
+        <p className="text-xs font-mono text-slate-500">
           <span className="mr-2 text-muted-foreground/80">RESOLVED_SCOPE_WINDOW:</span>
           {resolvedWindowLabel}
         </p>
@@ -243,10 +243,10 @@ function MetricCard({
   };
 
   return (
-    <article className="rounded-xl border border-border bg-white p-4">
-      <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="mb-1 text-sm font-medium text-slate-500">{label}</p>
       <div className="flex items-end justify-between gap-2">
-        <p className="text-3xl font-semibold text-foreground">{value}</p>
+        <p className="text-3xl font-bold text-slate-900">{value}</p>
         <span className={["rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase", toneMap[tone]].join(" ")}>
           Live
         </span>

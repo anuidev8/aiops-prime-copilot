@@ -8,12 +8,17 @@ interface PanelProps extends PropsWithChildren {
 
 export function Panel({ title, subtitle, className, children }: PanelProps) {
   return (
-    <section className={["rounded-3xl border border-border bg-white p-5", className ?? ""].join(" ")}>
-      <header className="mb-4">
-        <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">{title}</h2>
-        {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+    <section
+      className={[
+        "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm",
+        className ?? "",
+      ].join(" ")}
+    >
+      <header className="border-b border-slate-100 p-5">
+        <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
       </header>
-      {children}
+      <div className="p-5">{children}</div>
     </section>
   );
 }
